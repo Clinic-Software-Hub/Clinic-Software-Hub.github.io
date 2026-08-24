@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Clinic-Software-Hub &mdash; Administration</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
 <style>
   :root {
     --bg: #eef3f7;
@@ -29,6 +30,25 @@
     flex-direction: column;
     justify-content: center;
     gap: 6px;
+  }
+  .field-with-help {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .help-icon {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1px solid var(--panel-border);
+    color: var(--text-dim);
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: help;
+    user-select: none;
   }
   .top-controls input {
     width: 100%;
@@ -143,8 +163,14 @@
   <h2 class="section-title">Runtime Actions</h2>
   <div id="workflowList">
     <div class="top-controls workflow-card">
-      <input type="password" id="patInput" placeholder="GitHub PAT" autocomplete="off">
-      <input type="text" id="envInput" placeholder="GitHub environment name" autocomplete="off">
+      <div class="field-with-help">
+        <input type="password" id="patInput" placeholder="GitHub PAT" autocomplete="off">
+        <span class="help-icon" title="Create one at github.com &#8594; Settings &#8594; Developer settings &#8594; Personal access tokens &#8594; Fine-grained tokens &#8594; Generate new token. Scope it to the Clinic-Software-Hub/clinicsoftwarehub repository only, with Actions permission set to Read and write.">?</span>
+      </div>
+      <div class="field-with-help">
+        <input type="text" id="envInput" placeholder="GitHub environment name" autocomplete="off">
+        <span class="help-icon" title="Find it in the clinicsoftwarehub repo under Settings &#8594; Environments. Use the exact environment name shown there (e.g. production).">?</span>
+      </div>
       <input type="text" id="branchInput" placeholder="Branch (default: main)" autocomplete="off">
     </div>
 
@@ -176,23 +202,6 @@
   var POLL_MAX_ATTEMPTS = 25;
 
   var WORKFLOWS = [
-    {
-      file: "runtime-prepare-vps.yml",
-      title: "Prepare new VPS",
-      desc: "Full VPS bootstrap: pulls clinicsoftwarehub-init, deploys scripts/ to the VPS, optionally registers DNS/SSL, provisions and starts a default tenant.",
-      envKey: "enviroment",
-      inputs: [
-        { name: "register_dns", label: "Register DNS for this VPS", type: "checkbox", default: false },
-        { name: "create_ssl_cert", label: "Create SSL certificate for this DNS/VPS pair", type: "checkbox", default: false }
-      ]
-    },
-    {
-      file: "runtime-refresh-deploy-scripts.yml",
-      title: "Refresh deploy scripts",
-      desc: "Re-deploys just the scripts/ directory and credentials to an existing VPS.",
-      envKey: "enviroment",
-      inputs: []
-    },
     {
       file: "runtime-start-tenant.yml",
       title: "Start tenant",
@@ -231,6 +240,23 @@
       inputs: [
         { name: "tenant_id", label: "Tenant ID to stop, archive and remove", type: "text", required: true }
       ]
+    },
+    {
+      file: "runtime-prepare-vps.yml",
+      title: "Prepare new VPS",
+      desc: "Full VPS bootstrap: pulls clinicsoftwarehub-init, deploys scripts/ to the VPS, optionally registers DNS/SSL, provisions and starts a default tenant.",
+      envKey: "enviroment",
+      inputs: [
+        { name: "register_dns", label: "Register DNS for this VPS", type: "checkbox", default: false },
+        { name: "create_ssl_cert", label: "Create SSL certificate for this DNS/VPS pair", type: "checkbox", default: false }
+      ]
+    },
+    {
+      file: "runtime-refresh-deploy-scripts.yml",
+      title: "Refresh deploy scripts",
+      desc: "Re-deploys just the scripts/ directory and credentials to an existing VPS.",
+      envKey: "enviroment",
+      inputs: []
     },
     {
       file: "runtime-start-nginx-dozzle.yml",
