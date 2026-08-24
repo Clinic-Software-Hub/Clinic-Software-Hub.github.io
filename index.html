@@ -1,51 +1,593 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ClinicSoftwareHub</title>
-  <style>
-    body {
-      margin: 0;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0f172a;
-      color: #e2e8f0;
-    }
-    main {
-      text-align: center;
-      padding: 2rem;
-    }
-    h1 {
-      margin: 0 0 0.5rem;
-      font-size: 1.75rem;
-    }
-    p {
-      margin: 0 0 1.5rem;
-      color: #94a3b8;
-    }
-    a.button {
-      display: inline-block;
-      padding: 0.75rem 1.5rem;
-      border-radius: 6px;
-      background: #2563eb;
-      color: #fff;
-      text-decoration: none;
-      font-weight: 600;
-    }
-    a.button:hover {
-      background: #1d4ed8;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clinic-Software-Hub &mdash; Administration</title>
+<style>
+  :root {
+    --bg: #eef3f7;
+    --panel: #ffffff;
+    --panel-border: #dde5ec;
+    --text: #333333;
+    --text-dim: #666666;
+    --primary: #00acdb;
+    --primary-hover: #0090b8;
+    --up: #32893a;
+    --down: #d33333;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  .top-controls {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+  }
+  .top-controls input {
+    width: 100%;
+    padding: 0.5rem 0.6rem;
+    border-radius: 6px;
+    border: 1px solid var(--panel-border);
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.8rem;
+  }
+
+  header {
+    text-align: center;
+    padding: 1.5rem 1rem 0.25rem;
+  }
+  header h1 { margin: 0 0 0.4rem; font-size: 1.5rem; font-weight: 600; }
+  header p { margin: 0; color: var(--text-dim); }
+
+  a.button {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    border-radius: 6px;
+    background: var(--primary);
+    color: #fff;
+    text-decoration: none;
+    font-weight: 600;
+  }
+  a.button:hover { background: var(--primary-hover); }
+
+  main { max-width: 920px; margin: 0 auto; padding: 0 1rem 4rem; }
+
+  h2.section-title {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+    font-weight: 600;
+    margin: 0.5rem 0 0.75rem;
+  }
+
+  #workflowList {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  @media (max-width: 640px) {
+    #workflowList { grid-template-columns: 1fr; }
+  }
+
+  .workflow-card {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    box-shadow: 0 1px 3px rgba(40, 53, 147, 0.06);
+  }
+  .workflow-card h3 {
+    margin: 0 0 0.75rem;
+    font-size: 1rem;
+    cursor: help;
+    display: inline-block;
+    border-bottom: 1px dotted #b8c2cc;
+  }
+
+  .status-card {
+    text-align: center;
+  }
+  .status-card h3 {
+    cursor: default;
+    border-bottom: none;
+    display: block;
+  }
+  .workflow-card .field { margin-bottom: 0.6rem; }
+  .workflow-card label { display: block; font-size: 0.8rem; color: var(--text-dim); margin-bottom: 0.25rem; }
+  .workflow-card input[type="text"] {
+    width: 100%;
+    padding: 0.5rem 0.6rem;
+    border-radius: 6px;
+    border: 1px solid var(--panel-border);
+    background: var(--bg);
+    color: var(--text);
+  }
+  .workflow-card .checkbox-field { display: flex; align-items: center; gap: 0.5rem; }
+  .workflow-card .checkbox-field label { margin: 0; }
+  .workflow-card .actions { display: flex; gap: 0.75rem; align-items: center; margin-top: 0.75rem; flex-wrap: wrap; }
+  .workflow-card button.run {
+    background: var(--up);
+    color: #fff;
+    border: none;
+    padding: 0.55rem 1.1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .workflow-card button.run:disabled { background: var(--text-dim); cursor: not-allowed; }
+  .workflow-card a.manual-link { color: var(--primary); font-size: 0.85rem; text-decoration: none; }
+  .workflow-card a.manual-link:hover { color: var(--primary-hover); text-decoration: underline; }
+  .workflow-card .result { font-size: 0.85rem; margin-top: 0.5rem; }
+  .workflow-card .result.ok { color: var(--up); }
+  .workflow-card .result.err { color: var(--down); }
+</style>
 </head>
 <body>
-  <main>
-    <h1>ClinicSoftwareHub</h1>
-    <p>Service status for all tenants and shared infrastructure.</p>
-    <a class="button" href="https://clinicsoftwarehub.online/status.html">View Status Dashboard</a>
-  </main>
+
+<header>
+  <h1>Clinic-Software-Hub</h1>
+  <p>Administration of tenants and shared infrastructure</p>
+</header>
+
+<main>
+  <h2 class="section-title">Runtime Actions</h2>
+  <div id="workflowList">
+    <div class="top-controls workflow-card">
+      <input type="password" id="patInput" placeholder="GitHub PAT" autocomplete="off">
+      <input type="text" id="envInput" placeholder="GitHub environment name" autocomplete="off">
+      <input type="text" id="branchInput" placeholder="Branch (default: main)" autocomplete="off">
+    </div>
+
+    <div class="workflow-card status-card">
+      <h3>Status Dashboard</h3>
+      <a class="button" href="https://clinicsoftwarehub.online/status.html" target="_blank" rel="noopener noreferrer">View Status Dashboard</a>
+    </div>
+  </div>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var OWNER = "Clinic-Software-Hub";
+  var REPO = "clinicsoftwarehub";
+  var DEFAULT_REF = "main";
+
+  var PAT_KEY = "csh_gh_pat";
+  var ENV_KEY = "csh_gh_env";
+  var BRANCH_KEY = "csh_gh_branch";
+
+  // GitHub can take noticeably longer than a few seconds between accepting
+  // a workflow_dispatch call and the resulting run actually showing up in
+  // the runs list (worse if another runtime-*.yml run is already occupying
+  // the "global-deployment" concurrency group), so this window is generous
+  // on purpose.
+  var POLL_INTERVAL_MS = 2000;
+  var POLL_MAX_ATTEMPTS = 25;
+
+  var WORKFLOWS = [
+    {
+      file: "runtime-prepare-vps.yml",
+      title: "Prepare new VPS",
+      desc: "Full VPS bootstrap: pulls clinicsoftwarehub-init, deploys scripts/ to the VPS, optionally registers DNS/SSL, provisions and starts a default tenant.",
+      envKey: "enviroment",
+      inputs: [
+        { name: "register_dns", label: "Register DNS for this VPS", type: "checkbox", default: false },
+        { name: "create_ssl_cert", label: "Create SSL certificate for this DNS/VPS pair", type: "checkbox", default: false }
+      ]
+    },
+    {
+      file: "runtime-refresh-deploy-scripts.yml",
+      title: "Refresh deploy scripts",
+      desc: "Re-deploys just the scripts/ directory and credentials to an existing VPS.",
+      envKey: "enviroment",
+      inputs: []
+    },
+    {
+      file: "runtime-start-tenant.yml",
+      title: "Start tenant",
+      desc: "Starts a specific tenant's stack; optionally (re)creates and seeds it first.",
+      envKey: "enviroment",
+      inputs: [
+        { name: "tenant_id", label: "Tenant ID", type: "text", required: true },
+        { name: "create-tenant", label: "(Re)create the tenant before starting", type: "checkbox", default: true },
+        { name: "seed_boxzero_data", label: "Seed BoxZero demo data", type: "checkbox", default: false }
+      ]
+    },
+    {
+      file: "runtime-stop-tenant.yml",
+      title: "Stop tenant",
+      desc: "Stops a specific tenant's stack.",
+      envKey: "enviroment",
+      inputs: [
+        { name: "tenant_id", label: "Tenant ID", type: "text", required: true }
+      ]
+    },
+    {
+      file: "runtime-manage-mongoku.yml",
+      title: "Manage Mongoku",
+      desc: "Starts or stops a specific tenant's Mongoku (DB admin UI) instance only.",
+      envKey: "enviroment",
+      inputs: [
+        { name: "tenant_id", label: "Tenant ID", type: "text", required: true },
+        { name: "start-stop", label: "Checked = start Mongoku, unchecked = stop Mongoku", type: "checkbox", default: true }
+      ]
+    },
+    {
+      file: "runtime-offboard-tenant.yml",
+      title: "Offboard tenant",
+      desc: "Stops a tenant, archives its whole directory, then deletes the live copy. Destructive on the live directory (recoverable from the archive).",
+      envKey: "enviroment",
+      inputs: [
+        { name: "tenant_id", label: "Tenant ID to stop, archive and remove", type: "text", required: true }
+      ]
+    },
+    {
+      file: "runtime-start-nginx-dozzle.yml",
+      title: "Start Nginx + Dozzle",
+      desc: "Starts the shared Nginx ingress and Dozzle log viewer.",
+      envKey: "enviroment",
+      inputs: []
+    },
+    {
+      file: "runtime-stop-nginx-dozzle.yml",
+      title: "Stop Nginx + Dozzle",
+      desc: "Stops the shared Nginx ingress and Dozzle log viewer.",
+      envKey: "enviroment",
+      inputs: []
+    },
+    {
+      file: "runtime-renew-ssl-cert.yml",
+      title: "Renew SSL certificate",
+      desc: "Renews the base + wildcard Let's Encrypt certificate on demand.",
+      envKey: "enviroment",
+      inputs: []
+    },
+    {
+      file: "runtime-refresh-status.yml",
+      title: "Refresh status dashboard",
+      desc: "Re-runs scripts/status-all.sh on the VPS on demand.",
+      envKey: "enviroment",
+      inputs: []
+    },
+    {
+      file: "runtime-bootstrap-github-environment.yml",
+      title: "Bootstrap GitHub environment",
+      desc: "Creates a new GitHub Environment with placeholder vars/secrets for a new deployment target.",
+      envKey: "environment_name",
+      inputs: []
+    }
+  ];
+
+  function bindPersisted(id, storageKey) {
+    var el = document.getElementById(id);
+    var stored = sessionStorage.getItem(storageKey);
+    if (stored) el.value = stored;
+    el.addEventListener("input", function () {
+      var v = el.value.trim();
+      if (v) sessionStorage.setItem(storageKey, v);
+      else sessionStorage.removeItem(storageKey);
+    });
+    return el;
+  }
+
+  var patEl = bindPersisted("patInput", PAT_KEY);
+  var envEl = bindPersisted("envInput", ENV_KEY);
+  var branchEl = bindPersisted("branchInput", BRANCH_KEY);
+
+  function ghHeaders(token) {
+    return {
+      "Authorization": "Bearer " + token,
+      "Accept": "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28"
+    };
+  }
+
+  function writeLoadingTab(tab) {
+    if (!tab) return;
+    tab.document.title = "Dispatching…";
+    tab.document.body.style.margin = "0";
+    var p = tab.document.createElement("p");
+    p.textContent = "Waiting for the workflow run to appear on GitHub…";
+    p.style.cssText = "font-family:sans-serif;background:#eef3f7;color:#333333;padding:2rem;margin:0;min-height:100vh;box-sizing:border-box;";
+    tab.document.body.appendChild(p);
+  }
+
+  var LOG_POLL_MS = 4000;
+  var ANSI_RE = /\x1b\[[0-9;]*m/g;
+
+  function stripAnsi(s) {
+    return s.replace(ANSI_RE, "");
+  }
+
+  // Renders a live-ish log view for a run directly in `tab`, polling the
+  // run + its jobs' raw logs until the run completes. The jobs/{id}/logs
+  // endpoint redirects to a signed blob-storage URL that doesn't always
+  // send CORS headers back to arbitrary origins -- if that fetch fails,
+  // we show a message pointing at the "Open in GitHub Actions" link
+  // instead of failing silently.
+  function renderLogsInTab(tab, runId, token, htmlUrl) {
+    if (!tab) return;
+    tab.document.title = "Run logs";
+    tab.document.body.style.margin = "0";
+    tab.document.body.style.background = "#eef3f7";
+    tab.document.body.style.color = "#333333";
+    tab.document.body.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+    tab.document.body.textContent = "";
+
+    var wrap = tab.document.createElement("div");
+    wrap.style.cssText = "padding:1rem 1.5rem 3rem;max-width:1100px;margin:0 auto;box-sizing:border-box;";
+
+    var topBar = tab.document.createElement("div");
+    topBar.style.cssText = "display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;gap:1rem;";
+
+    var statusText = tab.document.createElement("span");
+    statusText.textContent = "Loading run...";
+    statusText.style.fontWeight = "600";
+    topBar.appendChild(statusText);
+
+    var ghLink = tab.document.createElement("a");
+    ghLink.href = htmlUrl;
+    ghLink.target = "_blank";
+    ghLink.rel = "noopener noreferrer";
+    ghLink.textContent = "Open in GitHub Actions";
+    ghLink.style.color = "#00acdb";
+    topBar.appendChild(ghLink);
+
+    wrap.appendChild(topBar);
+
+    var jobsContainer = tab.document.createElement("div");
+    wrap.appendChild(jobsContainer);
+
+    tab.document.body.appendChild(wrap);
+
+    function renderJobs(jobs, results) {
+      jobsContainer.textContent = "";
+      results.forEach(function (r) {
+        var jobBlock = tab.document.createElement("div");
+        jobBlock.style.marginBottom = "1.5rem";
+
+        var jobTitle = tab.document.createElement("div");
+        jobTitle.textContent = r.job.name + " — " + r.job.status + (r.job.conclusion ? " (" + r.job.conclusion + ")" : "");
+        jobTitle.style.cssText = "font-weight:600;margin-bottom:0.5rem;";
+        jobBlock.appendChild(jobTitle);
+
+        var pre = tab.document.createElement("pre");
+        pre.style.cssText = "background:#ffffff;border:1px solid #dde5ec;border-radius:8px;padding:1rem;overflow:auto;font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-word;margin:0;";
+        if (r.log !== null) {
+          pre.textContent = stripAnsi(r.log) || "(empty log so far)";
+        } else if (r.job.status !== "completed") {
+          pre.textContent = "Waiting for this job to start...";
+        } else {
+          pre.textContent = "Could not load logs for this job (possibly blocked by the log storage's CORS policy). Use \"Open in GitHub Actions\" above to view them there.";
+        }
+        jobBlock.appendChild(pre);
+
+        jobsContainer.appendChild(jobBlock);
+      });
+    }
+
+    function poll() {
+      if (tab.closed) return;
+      fetch("https://api.github.com/repos/" + OWNER + "/" + REPO + "/actions/runs/" + runId, {
+        headers: ghHeaders(token)
+      }).then(function (res) { return res.json(); }).then(function (run) {
+        if (tab.closed) return;
+        statusText.textContent = "Status: " + run.status + (run.conclusion ? " (" + run.conclusion + ")" : "");
+
+        return fetch("https://api.github.com/repos/" + OWNER + "/" + REPO + "/actions/runs/" + runId + "/jobs", {
+          headers: ghHeaders(token)
+        }).then(function (res) { return res.json(); }).then(function (data) {
+          if (tab.closed) return;
+          var jobs = (data && data.jobs) || [];
+          return Promise.all(jobs.map(function (job) {
+            return fetch("https://api.github.com/repos/" + OWNER + "/" + REPO + "/actions/jobs/" + job.id + "/logs", {
+              headers: ghHeaders(token)
+            }).then(function (r) {
+              if (!r.ok) return { job: job, log: null };
+              return r.text().then(function (t) { return { job: job, log: t }; });
+            }).catch(function () {
+              return { job: job, log: null };
+            });
+          })).then(function (results) {
+            if (tab.closed) return;
+            renderJobs(jobs, results);
+            if (run.status !== "completed") {
+              setTimeout(poll, LOG_POLL_MS);
+            }
+          });
+        });
+      }).catch(function (err) {
+        if (tab.closed) return;
+        statusText.textContent = "Error loading run: " + err.message;
+        setTimeout(poll, LOG_POLL_MS);
+      });
+    }
+
+    poll();
+  }
+
+  // workflow_dispatch's API response carries no run id, so we poll the
+  // workflow's runs list right after dispatching and grab the newest run
+  // created at/after the dispatch time.
+  function findNewRun(wf, token, sinceMs, attempt, onDone, onProgress) {
+    if (onProgress) onProgress(attempt);
+    fetch("https://api.github.com/repos/" + OWNER + "/" + REPO + "/actions/workflows/" + wf.file + "/runs?event=workflow_dispatch&per_page=5", {
+      headers: ghHeaders(token)
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      var runs = (data && data.workflow_runs) || [];
+      var match = runs.find(function (r) {
+        return new Date(r.created_at).getTime() >= sinceMs - 10000;
+      });
+      if (match) {
+        onDone(match);
+      } else if (attempt < POLL_MAX_ATTEMPTS) {
+        setTimeout(function () { findNewRun(wf, token, sinceMs, attempt + 1, onDone, onProgress); }, POLL_INTERVAL_MS);
+      } else {
+        onDone(null);
+      }
+    }).catch(function () {
+      onDone(null);
+    });
+  }
+
+  function buildCard(wf) {
+    var card = document.createElement("div");
+    card.className = "workflow-card";
+
+    var h3 = document.createElement("h3");
+    h3.textContent = wf.title;
+    h3.title = wf.desc;
+    card.appendChild(h3);
+
+    var fieldEls = {};
+    wf.inputs.forEach(function (inp) {
+      var field = document.createElement("div");
+      field.className = inp.type === "checkbox" ? "field checkbox-field" : "field";
+
+      var label = document.createElement("label");
+      label.textContent = inp.label + (inp.required ? " *" : "");
+
+      var el = document.createElement("input");
+      el.type = inp.type === "checkbox" ? "checkbox" : "text";
+      el.id = wf.file + "__" + inp.name;
+      if (inp.type === "checkbox") {
+        el.checked = !!inp.default;
+        field.appendChild(el);
+        field.appendChild(label);
+      } else {
+        field.appendChild(label);
+        field.appendChild(el);
+      }
+
+      card.appendChild(field);
+      fieldEls[inp.name] = { el: el, type: inp.type, required: inp.required };
+    });
+
+    var actions = document.createElement("div");
+    actions.className = "actions";
+
+    var runBtn = document.createElement("button");
+    runBtn.className = "run";
+    runBtn.type = "button";
+    runBtn.textContent = "Run";
+    actions.appendChild(runBtn);
+
+    var manualLink = document.createElement("a");
+    manualLink.className = "manual-link";
+    manualLink.href = "https://github.com/" + OWNER + "/" + REPO + "/actions/workflows/" + wf.file;
+    manualLink.target = "_blank";
+    manualLink.rel = "noopener noreferrer";
+    manualLink.textContent = "Open in GitHub Actions instead";
+    actions.appendChild(manualLink);
+
+    card.appendChild(actions);
+
+    var result = document.createElement("div");
+    result.className = "result";
+    card.appendChild(result);
+
+    runBtn.addEventListener("click", function () {
+      var token = patEl.value.trim();
+      var envValue = envEl.value.trim();
+      var branchValue = branchEl.value.trim() || DEFAULT_REF;
+
+      if (!token) {
+        result.className = "result err";
+        result.textContent = "Paste a token in the top-left box first.";
+        return;
+      }
+      if (!envValue) {
+        result.className = "result err";
+        result.textContent = "Fill in the GitHub environment name in the top-left box first.";
+        return;
+      }
+
+      var inputsPayload = {};
+      inputsPayload[wf.envKey] = envValue;
+
+      var missing = [];
+      Object.keys(fieldEls).forEach(function (name) {
+        var f = fieldEls[name];
+        if (f.type === "checkbox") {
+          inputsPayload[name] = f.el.checked ? "true" : "false";
+        } else {
+          var v = f.el.value.trim();
+          if (f.required && !v) missing.push(name);
+          if (v) inputsPayload[name] = v;
+        }
+      });
+      if (missing.length) {
+        result.className = "result err";
+        result.textContent = "Missing required field(s): " + missing.join(", ");
+        return;
+      }
+
+      // Open the tab synchronously inside the click handler so browsers
+      // don't treat it as a popup; we navigate it once we know the run URL.
+      var logTab = window.open("", "_blank");
+      writeLoadingTab(logTab);
+
+      runBtn.disabled = true;
+      result.className = "result";
+      result.textContent = "Dispatching...";
+
+      var dispatchTime = Date.now();
+
+      fetch("https://api.github.com/repos/" + OWNER + "/" + REPO + "/actions/workflows/" + wf.file + "/dispatches", {
+        method: "POST",
+        headers: Object.assign(ghHeaders(token), { "Content-Type": "application/json" }),
+        body: JSON.stringify({ ref: branchValue, inputs: inputsPayload })
+      }).then(function (res) {
+        if (res.status === 204) {
+          result.className = "result ok";
+          result.textContent = "Dispatched on '" + branchValue + "'. Looking up the run...";
+          findNewRun(wf, token, dispatchTime, 1, function (run) {
+            runBtn.disabled = false;
+            if (run) {
+              result.textContent = "Dispatched on '" + branchValue + "'. Streaming logs in new tab.";
+              renderLogsInTab(logTab, run.id, token, run.html_url);
+            } else {
+              result.textContent = "Dispatched on '" + branchValue + "', but couldn't find the run after " + (POLL_MAX_ATTEMPTS * POLL_INTERVAL_MS / 1000) + "s -- check the Actions tab.";
+              if (logTab) logTab.location.href = "https://github.com/" + OWNER + "/" + REPO + "/actions/workflows/" + wf.file;
+            }
+          }, function (attempt) {
+            result.textContent = "Dispatched on '" + branchValue + "'. Looking up the run... (" + Math.round((attempt - 1) * POLL_INTERVAL_MS / 1000) + "s)";
+          });
+          return null;
+        }
+        return res.json().then(function (body) {
+          runBtn.disabled = false;
+          result.className = "result err";
+          result.textContent = "Failed (" + res.status + "): " + (body && body.message ? body.message : "unknown error");
+          if (logTab) logTab.close();
+        });
+      }).catch(function (err) {
+        runBtn.disabled = false;
+        result.className = "result err";
+        result.textContent = "Request failed: " + err.message;
+        if (logTab) logTab.close();
+      });
+    });
+
+    return card;
+  }
+
+  var list = document.getElementById("workflowList");
+  WORKFLOWS.forEach(function (wf) {
+    list.appendChild(buildCard(wf));
+  });
+})();
+</script>
 </body>
 </html>
