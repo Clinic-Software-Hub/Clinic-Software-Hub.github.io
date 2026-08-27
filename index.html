@@ -362,7 +362,11 @@
   // doesn't always send CORS headers back to arbitrary origins -- if that
   // fetch fails, we show a message pointing at the "Open in GitHub
   // Actions" link instead of failing silently.
-  function pollRunLogs(tab, runId, token, statusText, jobsContainer) {
+  // `onUpdate`, if given, is called with the run object on every poll so
+  // callers outside the log tab (e.g. the card's own result text, which
+  // otherwise stays frozen on "Streaming logs..." forever) can reflect
+  // the run's actual status/conclusion once it's known.
+  function pollRunLogs(tab, runId, token, statusText, jobsContainer, onUpdate) {
     function renderJobs(jobs, results) {
       jobsContainer.textContent = "";
       results.forEach(function (r) {
@@ -396,6 +400,7 @@
       }).then(function (res) { return res.json(); }).then(function (run) {
         if (tab.closed) return;
         statusText.textContent = "Status: " + run.status + (run.conclusion ? " (" + run.conclusion + ")" : "");
+        if (onUpdate) onUpdate(run);
 
         return fetch("https://api.github.com/repos/" + OWNER + "/" + REPO + "/actions/runs/" + runId + "/jobs", {
           headers: ghHeaders(token)
@@ -430,7 +435,8 @@
   }
 
   // Renders a live-ish log view for a single run directly in `tab`.
-  function renderLogsInTab(tab, runId, token, htmlUrl) {
+  // `onUpdate`, if given, is forwarded to pollRunLogs (see its comment).
+  function renderLogsInTab(tab, runId, token, htmlUrl, onUpdate) {
     if (!tab) return;
     tab.document.title = "Run logs";
     tab.document.body.style.margin = "0";
@@ -465,7 +471,7 @@
 
     tab.document.body.appendChild(wrap);
 
-    pollRunLogs(tab, runId, token, statusText, jobsContainer);
+    pollRunLogs(tab, runId, token, statusText, jobsContainer, onUpdate);
   }
 
   // Builds one step's status/link/logs section inside a sequence tab and
@@ -667,7 +673,11 @@
             runBtn.disabled = false;
             if (run) {
               result.textContent = "Dispatched on '" + branchValue + "'. Streaming logs in new tab.";
-              renderLogsInTab(logTab, run.id, token, run.html_url);
+              renderLogsInTab(logTab, run.id, token, run.html_url, function (updatedRun) {
+                if (updatedRun.status !== "completed") return;
+                result.className = "result " + (updatedRun.conclusion === "success" ? "ok" : "err");
+                result.textContent = "Run " + updatedRun.conclusion + " (" + branchValue + "). See the log tab for details.";
+              });
             } else {
               result.textContent = "Dispatched on '" + branchValue + "', but couldn't find the run after " + (POLL_MAX_ATTEMPTS * POLL_INTERVAL_MS / 1000) + "s -- check the Actions tab.";
               if (logTab) logTab.location.href = "https://github.com/" + OWNER + "/" + REPO + "/actions/workflows/" + wf.file;
@@ -699,8 +709,10 @@
   // tab failed to open / was closed). Resolves once the dispatch call
   // itself has responded -- it does not wait for the run to finish, since
   // sequencing between steps is a fixed delay after dispatch, not a wait
-  // for completion.
-  function dispatchStep(wf, token, envValue, branchValue, tab, sectionRefs) {
+  // for completion. `onRunUpdate`, if given, is forwarded to pollRunLogs
+  // (see its comment) so a caller can reflect this step's eventual
+  // completion outside the log tab.
+  function dispatchStep(wf, token, envValue, branchValue, tab, sectionRefs, onRunUpdate) {
     function setStatus(text) {
       if (sectionRefs) sectionRefs.statusText.textContent = text;
     }
@@ -729,7 +741,7 @@
               ghLink.textContent = "Open in GitHub Actions";
               ghLink.style.color = "#00acdb";
               sectionRefs.linkHolder.appendChild(ghLink);
-              pollRunLogs(tab, run.id, token, sectionRefs.statusText, sectionRefs.jobsContainer);
+              pollRunLogs(tab, run.id, token, sectionRefs.statusText, sectionRefs.jobsContainer, onRunUpdate);
             }
           } else {
             setStatus("Dispatched, but couldn't find the run after " + (POLL_MAX_ATTEMPTS * POLL_INTERVAL_MS / 1000) + "s -- check the Actions tab.");
@@ -805,14 +817,20 @@
       function runStep(i) {
         var step = seq.steps[i];
         var wf = { file: step.file, envKey: seq.envKey };
-        dispatchStep(wf, token, envValue, branchValue, logTab, sections[i]).then(function (outcome) {
+        var isLast = i === seq.steps.length - 1;
+        var onRunUpdate = isLast ? function (updatedRun) {
+          if (updatedRun.status !== "completed") return;
+          result.className = "result " + (updatedRun.conclusion === "success" ? "ok" : "err");
+          result.textContent = "Step " + (i + 1) + " (" + step.label + ") " + updatedRun.conclusion + ". See the log tab for details.";
+        } : null;
+        dispatchStep(wf, token, envValue, branchValue, logTab, sections[i], onRunUpdate).then(function (outcome) {
           if (!outcome || !outcome.ok) {
             runBtn.disabled = false;
             result.className = "result err";
             result.textContent = "Step " + (i + 1) + " (" + step.label + ") failed to dispatch -- see the log tab for details.";
             return;
           }
-          if (i === seq.steps.length - 1) {
+          if (isLast) {
             runBtn.disabled = false;
             result.className = "result ok";
             result.textContent = "Dispatched all " + seq.steps.length + " step(s). Streaming logs in new tab.";
