@@ -179,6 +179,7 @@
       <a class="button" href="https://clinicsoftwarehub.online/status.html" target="_blank" rel="noopener noreferrer">View Status Dashboard</a>
     </div>
   </div>
+  <datalist id="tenantIdList"></datalist>
 </main>
 
 <script>
@@ -188,6 +189,7 @@
   var OWNER = "Clinic-Software-Hub";
   var REPO = "clinicsoftwarehub";
   var DEFAULT_REF = "main";
+  var STATUS_JSON_URL = "https://clinicsoftwarehub.online/status.json";
 
   var PAT_KEY = "csh_gh_pat";
   var ENV_KEY = "csh_gh_env";
@@ -208,7 +210,7 @@
       desc: "Starts a specific tenant's stack; optionally (re)creates and seeds it first.",
       envKey: "enviroment",
       inputs: [
-        { name: "tenant_id", label: "Tenant ID", type: "text", required: true },
+        { name: "tenant_id", label: "Tenant ID", type: "text", required: true, datalist: "tenantIdList" },
         { name: "create-tenant", label: "(Re)create the tenant before starting", type: "checkbox", default: true },
         { name: "seed_boxzero_data", label: "Seed BoxZero demo data", type: "checkbox", default: false }
       ]
@@ -219,7 +221,7 @@
       desc: "Stops a specific tenant's stack.",
       envKey: "enviroment",
       inputs: [
-        { name: "tenant_id", label: "Tenant ID", type: "text", required: true }
+        { name: "tenant_id", label: "Tenant ID", type: "text", required: true, datalist: "tenantIdList" }
       ]
     },
     {
@@ -228,7 +230,7 @@
       desc: "Starts or stops a specific tenant's Mongoku (DB admin UI) instance only.",
       envKey: "enviroment",
       inputs: [
-        { name: "tenant_id", label: "Tenant ID", type: "text", required: true },
+        { name: "tenant_id", label: "Tenant ID", type: "text", required: true, datalist: "tenantIdList" },
         { name: "start-stop", label: "Checked = start Mongoku, unchecked = stop Mongoku", type: "checkbox", default: true }
       ]
     },
@@ -238,7 +240,7 @@
       desc: "Stops a tenant, archives its whole directory, then deletes the live copy. Destructive on the live directory (recoverable from the archive).",
       envKey: "enviroment",
       inputs: [
-        { name: "tenant_id", label: "Tenant ID to stop, archive and remove", type: "text", required: true }
+        { name: "tenant_id", label: "Tenant ID to stop, archive and remove", type: "text", required: true, datalist: "tenantIdList" }
       ]
     },
     {
@@ -293,6 +295,39 @@
   var patEl = bindPersisted("patInput", PAT_KEY);
   var envEl = bindPersisted("envInput", ENV_KEY);
   var branchEl = bindPersisted("branchInput", BRANCH_KEY);
+
+  // status.json is public and unauthenticated, so this doesn't need the PAT.
+  // If it's unreachable -- most likely blocked by CORS since the VPS nginx
+  // config doesn't currently send Access-Control-Allow-Origin for a
+  // cross-origin GitHub Pages request, but also network errors, non-2xx, or
+  // malformed JSON -- the datalist just stays empty and the tenant_id inputs
+  // silently fall back to plain free-text fields.
+  function populateTenantIdList() {
+    fetch(STATUS_JSON_URL).then(function (res) {
+      if (!res.ok) throw new Error("status " + res.status);
+      return res.json();
+    }).then(function (data) {
+      var tenants = data && Array.isArray(data.tenants) ? data.tenants : [];
+      var ids = tenants.map(function (t) {
+        return t && t.tenant_id;
+      }).filter(function (id) {
+        return typeof id === "string" && id;
+      });
+      ids = ids.filter(function (id, i) {
+        return ids.indexOf(id) === i;
+      });
+      ids.sort();
+
+      var datalist = document.getElementById("tenantIdList");
+      ids.forEach(function (id) {
+        var opt = document.createElement("option");
+        opt.value = id;
+        datalist.appendChild(opt);
+      });
+    }).catch(function (err) {
+      console.warn("Could not load tenant IDs from " + STATUS_JSON_URL + ":", err);
+    });
+  }
 
   function ghHeaders(token) {
     return {
@@ -535,6 +570,7 @@
 
       var el = document.createElement("input");
       el.type = inp.type === "checkbox" ? "checkbox" : "text";
+      if (inp.datalist) el.setAttribute("list", inp.datalist);
       el.id = wf.file + "__" + inp.name;
       if (inp.type === "checkbox") {
         el.checked = !!inp.default;
@@ -797,6 +833,7 @@
   WORKFLOWS.forEach(function (wf) {
     list.appendChild(wf.type === "sequence" ? buildSequenceCard(wf) : buildCard(wf));
   });
+  populateTenantIdList();
 })();
 </script>
 </body>
