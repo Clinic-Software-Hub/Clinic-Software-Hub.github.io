@@ -150,6 +150,16 @@
   .workflow-card .result { font-size: 0.85rem; margin-top: 0.5rem; }
   .workflow-card .result.ok { color: var(--up); }
   .workflow-card .result.err { color: var(--down); }
+
+  footer.build-info {
+    text-align: center;
+    margin-top: 2rem;
+    padding-bottom: 2.5rem;
+    color: var(--text-dim);
+    font-size: 0.75rem;
+  }
+  footer.build-info a { color: var(--text-dim); }
+  footer.build-info a:hover { color: var(--primary); }
 </style>
 </head>
 <body>
@@ -182,6 +192,8 @@
   <datalist id="tenantIdList"></datalist>
 </main>
 
+<footer class="build-info" id="buildInfo">Loading version…</footer>
+
 <script>
 (function () {
   "use strict";
@@ -190,6 +202,11 @@
   var REPO = "clinicsoftwarehub";
   var DEFAULT_REF = "main";
   var STATUS_JSON_URL = "https://clinicsoftwarehub.online/status.json";
+
+  // This site's own repo (distinct from OWNER/REPO above, which is the
+  // separate repo holding the runtime-*.yml workflows this page dispatches).
+  // Used only to show the deployed commit/timestamp in the footer.
+  var PAGES_REPO = "Clinic-Software-Hub/Clinic-Software-Hub.github.io";
 
   var PAT_KEY = "csh_gh_pat";
   var ENV_KEY = "csh_gh_env";
@@ -326,6 +343,41 @@
       });
     }).catch(function (err) {
       console.warn("Could not load tenant IDs from " + STATUS_JSON_URL + ":", err);
+    });
+  }
+
+  // Shows the currently-deployed commit in the footer by asking GitHub for
+  // the latest commit on this repo's main branch, rather than baking a
+  // version string in at edit time (which drifts the moment anyone forgets
+  // to bump it). Public/unauthenticated, same as populateTenantIdList above;
+  // on any failure the footer just says so instead of showing stale info.
+  function populateBuildInfo() {
+    var footer = document.getElementById("buildInfo");
+    fetch("https://api.github.com/repos/" + PAGES_REPO + "/commits/" + DEFAULT_REF, {
+      headers: { "Accept": "application/vnd.github+json" }
+    }).then(function (res) {
+      if (!res.ok) throw new Error("status " + res.status);
+      return res.json();
+    }).then(function (commit) {
+      var sha = commit && commit.sha;
+      var date = commit && commit.commit && commit.commit.committer && commit.commit.committer.date;
+      if (!sha || !date) throw new Error("malformed response");
+
+      var shortSha = sha.slice(0, 7);
+      var stamp = new Date(date).toISOString().replace("T", " ").replace(/\.\d+Z$/, " UTC");
+
+      footer.textContent = "";
+      var link = document.createElement("a");
+      link.href = "https://github.com/" + PAGES_REPO + "/commit/" + sha;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = shortSha;
+      footer.appendChild(document.createTextNode("Version "));
+      footer.appendChild(link);
+      footer.appendChild(document.createTextNode(" · deployed " + stamp));
+    }).catch(function (err) {
+      footer.textContent = "Version info unavailable";
+      console.warn("Could not load build info from GitHub:", err);
     });
   }
 
@@ -852,6 +904,7 @@
     list.appendChild(wf.type === "sequence" ? buildSequenceCard(wf) : buildCard(wf));
   });
   populateTenantIdList();
+  populateBuildInfo();
 })();
 </script>
 </body>
