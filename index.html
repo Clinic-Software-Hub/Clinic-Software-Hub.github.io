@@ -389,14 +389,24 @@
     };
   }
 
-  function writeLoadingTab(tab) {
+  function writeLoadingTab(tab, title) {
     if (!tab) return;
-    tab.document.title = "Dispatching…";
+    tab.document.title = title + " — Dispatching…";
     tab.document.body.style.margin = "0";
+    var wrap = tab.document.createElement("div");
+    wrap.style.cssText = "font-family:sans-serif;background:#eef3f7;color:#333333;padding:2rem;margin:0;min-height:100vh;box-sizing:border-box;";
+
+    var h1 = tab.document.createElement("div");
+    h1.textContent = title;
+    h1.style.cssText = "font-size:1.3rem;font-weight:700;margin-bottom:1rem;";
+    wrap.appendChild(h1);
+
     var p = tab.document.createElement("p");
     p.textContent = "Waiting for the workflow run to appear on GitHub…";
-    p.style.cssText = "font-family:sans-serif;background:#eef3f7;color:#333333;padding:2rem;margin:0;min-height:100vh;box-sizing:border-box;";
-    tab.document.body.appendChild(p);
+    p.style.margin = "0";
+    wrap.appendChild(p);
+
+    tab.document.body.appendChild(wrap);
   }
 
   var LOG_POLL_MS = 4000;
@@ -488,9 +498,9 @@
 
   // Renders a live-ish log view for a single run directly in `tab`.
   // `onUpdate`, if given, is forwarded to pollRunLogs (see its comment).
-  function renderLogsInTab(tab, runId, token, htmlUrl, onUpdate) {
+  function renderLogsInTab(tab, runId, token, htmlUrl, title, onUpdate) {
     if (!tab) return;
-    tab.document.title = "Run logs";
+    tab.document.title = title + " — Run logs";
     tab.document.body.style.margin = "0";
     tab.document.body.style.background = "#eef3f7";
     tab.document.body.style.color = "#333333";
@@ -499,6 +509,11 @@
 
     var wrap = tab.document.createElement("div");
     wrap.style.cssText = "padding:1rem 1.5rem 3rem;max-width:1100px;margin:0 auto;box-sizing:border-box;";
+
+    var h1 = tab.document.createElement("div");
+    h1.textContent = title;
+    h1.style.cssText = "font-size:1.3rem;font-weight:700;margin-bottom:1rem;";
+    wrap.appendChild(h1);
 
     var topBar = tab.document.createElement("div");
     topBar.style.cssText = "display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;gap:1rem;";
@@ -705,7 +720,7 @@
       // Open the tab synchronously inside the click handler so browsers
       // don't treat it as a popup; we navigate it once we know the run URL.
       var logTab = window.open("", "_blank");
-      writeLoadingTab(logTab);
+      writeLoadingTab(logTab, wf.title);
 
       runBtn.disabled = true;
       result.className = "result";
@@ -725,7 +740,7 @@
             runBtn.disabled = false;
             if (run) {
               result.textContent = "Dispatched on '" + branchValue + "'. Streaming logs in new tab.";
-              renderLogsInTab(logTab, run.id, token, run.html_url, function (updatedRun) {
+              renderLogsInTab(logTab, run.id, token, run.html_url, wf.title, function (updatedRun) {
                 if (updatedRun.status !== "completed") return;
                 result.className = "result " + (updatedRun.conclusion === "success" ? "ok" : "err");
                 result.textContent = "Run " + updatedRun.conclusion + " (" + branchValue + "). See the log tab for details.";
