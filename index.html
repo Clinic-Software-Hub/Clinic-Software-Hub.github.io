@@ -273,6 +273,10 @@
   var REPO = "clinicsoftwarehub";
   var DEFAULT_REF = "main";
   var STATUS_JSON_URL = "https://clinicsoftwarehub.online/status.json";
+  // How often to re-fetch status.json in the background, so the tenant ID
+  // list and the image-update indicator stay current on a tab left open
+  // rather than only reflecting whatever was true at page load.
+  var STATUS_POLL_MS = 60000;
 
   // This site's own repo (distinct from OWNER/REPO above, which is the
   // separate repo holding the runtime-*.yml workflows this page dispatches).
@@ -407,20 +411,29 @@
   // Lights up the red dot on the "Refresh deploy scripts" card when
   // status.json's image_updates block says a running image is behind the
   // remote (status !== "up-to-date", or a digest mismatch if status isn't
-  // given). Left hidden -- and the whole thing is a no-op -- if that block
-  // is missing, since older status.json deployments won't have it yet.
+  // given), and clears it again once every image is back to up-to-date --
+  // this runs on every poll (see STATUS_POLL_MS below), not just once, so
+  // the dot needs to be able to turn back off. Left hidden -- and the whole
+  // thing is a no-op -- if that block is missing, since older status.json
+  // deployments won't have it yet.
   function applyImageUpdateIndicator(data) {
     var badge = document.getElementById("imageUpdateBadge");
     if (!badge) return;
     var images = data && data.image_updates && data.image_updates.images;
-    if (!images || typeof images !== "object") return;
+    if (!images || typeof images !== "object") {
+      badge.style.display = "none";
+      return;
+    }
 
     var stale = Object.keys(images).filter(function (name) {
       var img = images[name] || {};
       if (img.status) return img.status !== "up-to-date";
       return !!img.local_digest && !!img.remote_digest && img.local_digest !== img.remote_digest;
     });
-    if (!stale.length) return;
+    if (!stale.length) {
+      badge.style.display = "none";
+      return;
+    }
 
     badge.style.display = "inline-block";
     badge.setAttribute("data-tooltip",
@@ -432,9 +445,10 @@
   // If it's unreachable -- most likely blocked by CORS since the VPS nginx
   // config doesn't currently send Access-Control-Allow-Origin for a
   // cross-origin GitHub Pages request, but also network errors, non-2xx, or
-  // malformed JSON -- both features below silently stay off: tenant_id
-  // inputs behave as plain free-text fields and the update indicator never
-  // lights up.
+  // malformed JSON -- both features below silently stay off (or, on a poll
+  // after an earlier successful load, just keep showing whatever they last
+  // saw): tenant_id inputs behave as plain free-text fields and the update
+  // indicator never lights up.
   function loadStatusJson() {
     fetch(STATUS_JSON_URL).then(function (res) {
       if (!res.ok) throw new Error("status " + res.status);
@@ -1080,6 +1094,7 @@
     list.appendChild(wf.type === "sequence" ? buildSequenceCard(wf) : buildCard(wf));
   });
   loadStatusJson();
+  setInterval(loadStatusJson, STATUS_POLL_MS);
   populateBuildInfo();
 })();
 </script>
