@@ -143,10 +143,28 @@
     border-radius: 6px;
     cursor: pointer;
     font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    min-width: 5.5rem;
   }
+  .workflow-card button.run svg { flex-shrink: 0; }
   .workflow-card button.run:disabled { background: var(--text-dim); cursor: not-allowed; }
-  .workflow-card a.manual-link { color: var(--primary); font-size: 0.85rem; text-decoration: none; }
-  .workflow-card a.manual-link:hover { color: var(--primary-hover); text-decoration: underline; }
+  .workflow-card a.manual-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    border-radius: 6px;
+    border: 1px solid var(--panel-border);
+    color: var(--primary);
+    text-decoration: none;
+    flex-shrink: 0;
+  }
+  .workflow-card a.manual-link:hover { color: var(--primary-hover); border-color: var(--primary-hover); }
+  .workflow-card a.manual-link svg { display: block; }
   .workflow-card .result { font-size: 0.85rem; margin-top: 0.5rem; }
   .workflow-card .result.ok { color: var(--up); }
   .workflow-card .result.err { color: var(--down); }
@@ -297,33 +315,24 @@
 
   var WORKFLOWS = [
     {
-      file: "runtime-start-tenant.yml",
-      title: "Start tenant",
-      desc: "Starts a specific tenant's stack; optionally (re)creates and seeds it first.",
+      type: "tenant-actions",
+      title: "Manage Tenant",
+      desc: "Start, stop, or (re)create and start a specific tenant's stack.",
       envKey: "enviroment",
-      inputs: [
-        { name: "tenant_id", label: "Tenant ID", type: "text", required: true, datalist: true },
-        { name: "create-tenant", label: "(Re)create the tenant before starting", type: "checkbox", default: true },
-        { name: "seed_boxzero_data", label: "Seed BoxZero demo data", type: "checkbox", default: false }
+      actions: [
+        { key: "start", label: "Start", icon: "play", file: "runtime-start-tenant.yml", fixedInputs: { "create-tenant": "false" } },
+        { key: "stop", label: "Stop", icon: "stop", file: "runtime-stop-tenant.yml", fixedInputs: {} },
+        { key: "create", label: "Create", icon: "wand", file: "runtime-start-tenant.yml", fixedInputs: { "create-tenant": "true" } }
       ]
     },
     {
-      file: "runtime-stop-tenant.yml",
-      title: "Stop tenant",
-      desc: "Stops a specific tenant's stack.",
-      envKey: "enviroment",
-      inputs: [
-        { name: "tenant_id", label: "Tenant ID", type: "text", required: true, datalist: true }
-      ]
-    },
-    {
-      file: "runtime-manage-mongoku.yml",
+      type: "tenant-actions",
       title: "Manage Mongoku",
       desc: "Starts or stops a specific tenant's Mongoku (DB admin UI) instance only.",
       envKey: "enviroment",
-      inputs: [
-        { name: "tenant_id", label: "Tenant ID", type: "text", required: true, datalist: true },
-        { name: "start-stop", label: "Checked = start Mongoku, unchecked = stop Mongoku", type: "checkbox", default: true }
+      actions: [
+        { key: "start", label: "Start", icon: "play", file: "runtime-manage-mongoku.yml", fixedInputs: { "start-stop": "true" } },
+        { key: "stop", label: "Stop", icon: "stop", file: "runtime-manage-mongoku.yml", fixedInputs: { "start-stop": "false" } }
       ]
     },
     {
@@ -346,9 +355,9 @@
       ]
     },
     {
-      file: "runtime-refresh-deploy-scripts.yml",
-      title: "Refresh deploy scripts",
-      desc: "Re-deploys just the scripts/ directory and credentials to an existing VPS.",
+      file: "runtime-refresh-vps-code-and-services.yml",
+      title: "Refresh VPS Code and Services",
+      desc: "Re-deploys the scripts/ directory and credentials, re-applies the VPS's global env and cron jobs, refreshes the image-update cache, and restarts Nginx/Dozzle and the status dashboard.",
       envKey: "enviroment",
       imageUpdateIndicator: true,
       inputs: []
@@ -408,7 +417,7 @@
     return ids;
   }
 
-  // Lights up the red dot on the "Refresh deploy scripts" card when
+  // Lights up the red dot on the "Refresh VPS Code and Services" card when
   // status.json's image_updates block says a running image is behind the
   // remote (status !== "up-to-date", or a digest mismatch if status isn't
   // given), and clears it again once every image is back to up-to-date --
@@ -786,6 +795,17 @@
     });
   }
 
+  // Small inline icon set. "play"/"stop" mimic old tape-recorder transport
+  // buttons (Manage Tenant's Start/Stop); "wand" marks the destructive
+  // (re)create action; "externalLink" replaces the old "Open in GitHub
+  // Actions instead" text link with an icon-only affordance.
+  var ICONS = {
+    play: '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M4 2.5v11l9-5.5-9-5.5z"/></svg>',
+    stop: '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><rect x="3.5" y="3.5" width="9" height="9" rx="1"/></svg>',
+    wand: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 13.5l6-6"/><path d="M11 1.8l0.7 1.6 1.6 0.7-1.6 0.7-0.7 1.6-0.7-1.6-1.6-0.7 1.6-0.7z" fill="currentColor" stroke="none"/><path d="M13.3 8l0.45 0.95 0.95 0.45-0.95 0.45-0.45 0.95-0.45-0.95-0.95-0.45 0.95-0.45z" fill="currentColor" stroke="none"/></svg>',
+    externalLink: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 2.5h-3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-3"/><path d="M9.5 2.5h4v4"/><path d="M13 3l-6 6"/></svg>'
+  };
+
   function buildCard(wf) {
     var card = document.createElement("div");
     card.className = "workflow-card";
@@ -846,7 +866,10 @@
     manualLink.href = "https://github.com/" + OWNER + "/" + REPO + "/actions/workflows/" + wf.file;
     manualLink.target = "_blank";
     manualLink.rel = "noopener noreferrer";
-    manualLink.textContent = "Open in GitHub Actions instead";
+    manualLink.tabIndex = 0;
+    manualLink.setAttribute("aria-label", "Open in GitHub Actions instead");
+    manualLink.setAttribute("data-tooltip", "Open in GitHub Actions instead");
+    manualLink.innerHTML = ICONS.externalLink;
     actions.appendChild(manualLink);
 
     card.appendChild(actions);
@@ -941,6 +964,161 @@
         if (logTab) logTab.close();
       });
     });
+
+    return card;
+  }
+
+  // Builds a "tenant-actions" card: one shared Tenant ID field plus N
+  // action buttons that each dispatch a workflow file with their own fixed
+  // inputs -- e.g. Manage Tenant's Start/Create both target
+  // runtime-start-tenant.yml (differing only in the create-tenant input)
+  // while Stop targets runtime-stop-tenant.yml; Manage Mongoku's Start/Stop
+  // both target runtime-manage-mongoku.yml, differing only in start-stop.
+  // All of a card's buttons are disabled together during a dispatch to
+  // avoid overlapping runs from the same card.
+  function buildTenantActionsCard(wf) {
+    var card = document.createElement("div");
+    card.className = "workflow-card";
+
+    var h3 = document.createElement("h3");
+    h3.textContent = wf.title;
+    h3.tabIndex = 0;
+    h3.setAttribute("data-tooltip", wf.desc);
+    card.appendChild(h3);
+
+    var tenantField = document.createElement("div");
+    tenantField.className = "field";
+    var tenantLabel = document.createElement("label");
+    tenantLabel.textContent = "Tenant ID *";
+    var tenantInput = document.createElement("input");
+    tenantInput.type = "text";
+    tenantInput.id = wf.actions[0].file + "__tenant_id";
+    tenantField.appendChild(tenantLabel);
+    tenantField.appendChild(tenantInput);
+    card.appendChild(tenantField);
+    attachTenantCombobox(tenantInput);
+
+    var actions = document.createElement("div");
+    actions.className = "actions";
+
+    var result = document.createElement("div");
+    result.className = "result";
+
+    var buttons = {};
+    function setButtonsDisabled(disabled) {
+      Object.keys(buttons).forEach(function (k) { buttons[k].disabled = disabled; });
+    }
+
+    wf.actions.forEach(function (action) {
+      var btn = document.createElement("button");
+      btn.className = "run";
+      btn.type = "button";
+      btn.innerHTML = ICONS[action.icon] + "<span>" + action.label + "</span>";
+      actions.appendChild(btn);
+      buttons[action.key] = btn;
+
+      btn.addEventListener("click", function () {
+        var token = patEl.value.trim();
+        var envValue = envEl.value.trim();
+        var branchValue = branchEl.value.trim() || DEFAULT_REF;
+        var tenantId = tenantInput.value.trim();
+
+        if (!token) {
+          result.className = "result err";
+          result.textContent = "Paste a token in the top-left box first.";
+          return;
+        }
+        if (!envValue) {
+          result.className = "result err";
+          result.textContent = "Fill in the GitHub environment name in the top-left box first.";
+          return;
+        }
+        if (!tenantId) {
+          result.className = "result err";
+          result.textContent = "Missing required field(s): tenant_id";
+          return;
+        }
+
+        var inputsPayload = {};
+        inputsPayload[wf.envKey] = envValue;
+        inputsPayload.tenant_id = tenantId;
+        Object.keys(action.fixedInputs || {}).forEach(function (k) {
+          inputsPayload[k] = action.fixedInputs[k];
+        });
+
+        var tabTitle = wf.title + " -- " + action.label;
+        var logTab = window.open("", "_blank");
+        writeLoadingTab(logTab, tabTitle);
+
+        setButtonsDisabled(true);
+        result.className = "result";
+        result.textContent = "Dispatching...";
+
+        var dispatchTime = Date.now();
+
+        fetch("https://api.github.com/repos/" + OWNER + "/" + REPO + "/actions/workflows/" + action.file + "/dispatches", {
+          method: "POST",
+          headers: Object.assign(ghHeaders(token), { "Content-Type": "application/json" }),
+          body: JSON.stringify({ ref: branchValue, inputs: inputsPayload })
+        }).then(function (res) {
+          if (res.status === 204) {
+            result.className = "result ok";
+            result.textContent = "Dispatched on '" + branchValue + "'. Looking up the run...";
+            findNewRun({ file: action.file }, token, dispatchTime, 1, function (run) {
+              setButtonsDisabled(false);
+              if (run) {
+                result.textContent = "Dispatched on '" + branchValue + "'. Streaming logs in new tab.";
+                renderLogsInTab(logTab, run.id, token, run.html_url, tabTitle, function (updatedRun) {
+                  if (updatedRun.status !== "completed") return;
+                  result.className = "result " + (updatedRun.conclusion === "success" ? "ok" : "err");
+                  result.textContent = action.label + " " + updatedRun.conclusion + " (" + branchValue + "). See the log tab for details.";
+                });
+              } else {
+                result.textContent = "Dispatched on '" + branchValue + "', but couldn't find the run after " + (POLL_MAX_ATTEMPTS * POLL_INTERVAL_MS / 1000) + "s -- check the Actions tab.";
+                if (logTab) logTab.location.href = "https://github.com/" + OWNER + "/" + REPO + "/actions/workflows/" + action.file;
+              }
+            }, function (attempt) {
+              result.textContent = "Dispatched on '" + branchValue + "'. Looking up the run... (" + Math.round((attempt - 1) * POLL_INTERVAL_MS / 1000) + "s)";
+            });
+            return null;
+          }
+          return res.json().then(function (body) {
+            setButtonsDisabled(false);
+            result.className = "result err";
+            result.textContent = "Failed (" + res.status + "): " + (body && body.message ? body.message : "unknown error");
+            if (logTab) logTab.close();
+          });
+        }).catch(function (err) {
+          setButtonsDisabled(false);
+          result.className = "result err";
+          result.textContent = "Request failed: " + err.message;
+          if (logTab) logTab.close();
+        });
+      });
+    });
+
+    // One icon-only "open in GitHub Actions" link per unique underlying
+    // workflow file (Start and Create share one, Stop has its own).
+    var seenFiles = {};
+    wf.actions.forEach(function (action) {
+      if (seenFiles[action.file]) return;
+      seenFiles[action.file] = true;
+      var sharedLabels = wf.actions.filter(function (a) { return a.file === action.file; })
+        .map(function (a) { return a.label; }).join("/");
+      var link = document.createElement("a");
+      link.className = "manual-link";
+      link.href = "https://github.com/" + OWNER + "/" + REPO + "/actions/workflows/" + action.file;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.tabIndex = 0;
+      link.setAttribute("aria-label", "Open " + sharedLabels + " in GitHub Actions");
+      link.setAttribute("data-tooltip", "Open " + sharedLabels + " in GitHub Actions");
+      link.innerHTML = ICONS.externalLink;
+      actions.appendChild(link);
+    });
+
+    card.appendChild(actions);
+    card.appendChild(result);
 
     return card;
   }
@@ -1091,7 +1269,10 @@
 
   var list = document.getElementById("workflowList");
   WORKFLOWS.forEach(function (wf) {
-    list.appendChild(wf.type === "sequence" ? buildSequenceCard(wf) : buildCard(wf));
+    var card = wf.type === "sequence" ? buildSequenceCard(wf)
+      : wf.type === "tenant-actions" ? buildTenantActionsCard(wf)
+      : buildCard(wf);
+    list.appendChild(card);
   });
   loadStatusJson();
   setInterval(loadStatusJson, STATUS_POLL_MS);
