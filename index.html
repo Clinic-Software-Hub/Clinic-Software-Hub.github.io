@@ -160,6 +160,78 @@
   }
   footer.build-info a { color: var(--text-dim); }
   footer.build-info a:hover { color: var(--primary); }
+
+  /* Themed replacement for the native title="" tooltip: any element with
+     data-tooltip gets a styled bubble on hover/focus instead of the
+     browser's own popup. */
+  [data-tooltip] { position: relative; }
+  [data-tooltip]:hover::after, [data-tooltip]:focus-visible::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 9px);
+    transform: translateX(-50%);
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.75rem;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: normal;
+    white-space: pre-line;
+    width: max-content;
+    max-width: 260px;
+    box-shadow: 0 4px 14px rgba(40, 53, 147, 0.14);
+    z-index: 20;
+    pointer-events: none;
+  }
+  [data-tooltip]:hover::before, [data-tooltip]:focus-visible::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 100%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: var(--panel-border);
+    z-index: 20;
+    pointer-events: none;
+  }
+
+  .update-badge {
+    display: none;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--down);
+    margin-left: 0.45rem;
+    cursor: help;
+  }
+
+  /* Themed stand-in for the native <input list> combobox popup, used for
+     the tenant_id fields. */
+  .combo-wrap { position: relative; }
+  .combo-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    max-height: 180px;
+    overflow-y: auto;
+    box-shadow: 0 4px 14px rgba(40, 53, 147, 0.14);
+    z-index: 30;
+  }
+  .combo-item {
+    padding: 0.45rem 0.6rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .combo-item:hover, .combo-item.active { background: var(--bg); }
 </style>
 </head>
 <body>
@@ -175,11 +247,11 @@
     <div class="top-controls workflow-card">
       <div class="field-with-help">
         <input type="password" id="patInput" placeholder="GitHub PAT" autocomplete="off">
-        <span class="help-icon" title="Create one at github.com &#8594; Settings &#8594; Developer settings &#8594; Personal access tokens &#8594; Fine-grained tokens &#8594; Generate new token. Scope it to the Clinic-Software-Hub/clinicsoftwarehub repository only, with Actions permission set to Read and write.">?</span>
+        <span class="help-icon" tabindex="0" data-tooltip="Create one at github.com &#8594; Settings &#8594; Developer settings &#8594; Personal access tokens &#8594; Fine-grained tokens &#8594; Generate new token. Scope it to the Clinic-Software-Hub/clinicsoftwarehub repository only, with Actions permission set to Read and write.">?</span>
       </div>
       <div class="field-with-help">
         <input type="text" id="envInput" placeholder="GitHub environment name" autocomplete="off">
-        <span class="help-icon" title="Find it in the clinicsoftwarehub repo under Settings &#8594; Environments. Use the exact environment name shown there (e.g. production).">?</span>
+        <span class="help-icon" tabindex="0" data-tooltip="Find it in the clinicsoftwarehub repo under Settings &#8594; Environments. Use the exact environment name shown there (e.g. production).">?</span>
       </div>
       <input type="text" id="branchInput" placeholder="Branch (default: main)" autocomplete="off">
     </div>
@@ -189,7 +261,6 @@
       <a class="button" href="https://clinicsoftwarehub.online/status.html" target="_blank" rel="noopener noreferrer">View Status Dashboard</a>
     </div>
   </div>
-  <datalist id="tenantIdList"></datalist>
 </main>
 
 <footer class="build-info" id="buildInfo">Loading version…</footer>
@@ -227,7 +298,7 @@
       desc: "Starts a specific tenant's stack; optionally (re)creates and seeds it first.",
       envKey: "enviroment",
       inputs: [
-        { name: "tenant_id", label: "Tenant ID", type: "text", required: true, datalist: "tenantIdList" },
+        { name: "tenant_id", label: "Tenant ID", type: "text", required: true, datalist: true },
         { name: "create-tenant", label: "(Re)create the tenant before starting", type: "checkbox", default: true },
         { name: "seed_boxzero_data", label: "Seed BoxZero demo data", type: "checkbox", default: false }
       ]
@@ -238,7 +309,7 @@
       desc: "Stops a specific tenant's stack.",
       envKey: "enviroment",
       inputs: [
-        { name: "tenant_id", label: "Tenant ID", type: "text", required: true, datalist: "tenantIdList" }
+        { name: "tenant_id", label: "Tenant ID", type: "text", required: true, datalist: true }
       ]
     },
     {
@@ -247,7 +318,7 @@
       desc: "Starts or stops a specific tenant's Mongoku (DB admin UI) instance only.",
       envKey: "enviroment",
       inputs: [
-        { name: "tenant_id", label: "Tenant ID", type: "text", required: true, datalist: "tenantIdList" },
+        { name: "tenant_id", label: "Tenant ID", type: "text", required: true, datalist: true },
         { name: "start-stop", label: "Checked = start Mongoku, unchecked = stop Mongoku", type: "checkbox", default: true }
       ]
     },
@@ -257,7 +328,7 @@
       desc: "Stops a tenant, archives its whole directory, then deletes the live copy. Destructive on the live directory (recoverable from the archive).",
       envKey: "enviroment",
       inputs: [
-        { name: "tenant_id", label: "Tenant ID to stop, archive and remove", type: "text", required: true, datalist: "tenantIdList" }
+        { name: "tenant_id", label: "Tenant ID to stop, archive and remove", type: "text", required: true, datalist: true }
       ]
     },
     {
@@ -275,6 +346,7 @@
       title: "Refresh deploy scripts",
       desc: "Re-deploys just the scripts/ directory and credentials to an existing VPS.",
       envKey: "enviroment",
+      imageUpdateIndicator: true,
       inputs: []
     },
     {
@@ -313,36 +385,112 @@
   var envEl = bindPersisted("envInput", ENV_KEY);
   var branchEl = bindPersisted("branchInput", BRANCH_KEY);
 
+  // Populated from status.json once it loads; read live by the tenant_id
+  // comboboxes below (each one filters this same array, so nothing needs to
+  // be redrawn when it arrives after a card has already rendered).
+  var tenantIds = [];
+
+  function extractTenantIds(data) {
+    var tenants = data && Array.isArray(data.tenants) ? data.tenants : [];
+    var ids = tenants.map(function (t) {
+      return t && t.tenant_id;
+    }).filter(function (id) {
+      return typeof id === "string" && id;
+    });
+    ids = ids.filter(function (id, i) {
+      return ids.indexOf(id) === i;
+    });
+    ids.sort();
+    return ids;
+  }
+
+  // Lights up the red dot on the "Refresh deploy scripts" card when
+  // status.json's image_updates block says a running image is behind the
+  // remote (status !== "up-to-date", or a digest mismatch if status isn't
+  // given). Left hidden -- and the whole thing is a no-op -- if that block
+  // is missing, since older status.json deployments won't have it yet.
+  function applyImageUpdateIndicator(data) {
+    var badge = document.getElementById("imageUpdateBadge");
+    if (!badge) return;
+    var images = data && data.image_updates && data.image_updates.images;
+    if (!images || typeof images !== "object") return;
+
+    var stale = Object.keys(images).filter(function (name) {
+      var img = images[name] || {};
+      if (img.status) return img.status !== "up-to-date";
+      return !!img.local_digest && !!img.remote_digest && img.local_digest !== img.remote_digest;
+    });
+    if (!stale.length) return;
+
+    badge.style.display = "inline-block";
+    badge.setAttribute("data-tooltip",
+      (stale.length === 1 ? "A new image is available on remote for download:\n" : "New images are available on remote for download:\n") +
+      stale.join("\n"));
+  }
+
   // status.json is public and unauthenticated, so this doesn't need the PAT.
   // If it's unreachable -- most likely blocked by CORS since the VPS nginx
   // config doesn't currently send Access-Control-Allow-Origin for a
   // cross-origin GitHub Pages request, but also network errors, non-2xx, or
-  // malformed JSON -- the datalist just stays empty and the tenant_id inputs
-  // silently fall back to plain free-text fields.
-  function populateTenantIdList() {
+  // malformed JSON -- both features below silently stay off: tenant_id
+  // inputs behave as plain free-text fields and the update indicator never
+  // lights up.
+  function loadStatusJson() {
     fetch(STATUS_JSON_URL).then(function (res) {
       if (!res.ok) throw new Error("status " + res.status);
       return res.json();
     }).then(function (data) {
-      var tenants = data && Array.isArray(data.tenants) ? data.tenants : [];
-      var ids = tenants.map(function (t) {
-        return t && t.tenant_id;
-      }).filter(function (id) {
-        return typeof id === "string" && id;
-      });
-      ids = ids.filter(function (id, i) {
-        return ids.indexOf(id) === i;
-      });
-      ids.sort();
-
-      var datalist = document.getElementById("tenantIdList");
-      ids.forEach(function (id) {
-        var opt = document.createElement("option");
-        opt.value = id;
-        datalist.appendChild(opt);
-      });
+      tenantIds = extractTenantIds(data);
+      applyImageUpdateIndicator(data);
     }).catch(function (err) {
-      console.warn("Could not load tenant IDs from " + STATUS_JSON_URL + ":", err);
+      console.warn("Could not load " + STATUS_JSON_URL + ":", err);
+    });
+  }
+
+  // Themed stand-in for the native <input list>/<datalist> combobox (which
+  // can't be restyled to match the page). Filters `tenantIds` as the user
+  // types and shows the results in a custom-styled dropdown.
+  function attachTenantCombobox(input) {
+    var wrap = document.createElement("div");
+    wrap.className = "combo-wrap";
+    input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+    input.autocomplete = "off";
+
+    var menu = document.createElement("div");
+    menu.className = "combo-menu";
+    wrap.appendChild(menu);
+
+    function render() {
+      var q = input.value.trim().toLowerCase();
+      var matches = tenantIds.filter(function (id) {
+        return !q || id.toLowerCase().indexOf(q) !== -1;
+      });
+      menu.textContent = "";
+      if (!matches.length) {
+        menu.style.display = "none";
+        return;
+      }
+      matches.forEach(function (id) {
+        var item = document.createElement("div");
+        item.className = "combo-item";
+        item.textContent = id;
+        // mousedown (not click) fires before the input's blur, so the
+        // selection lands before the menu gets hidden.
+        item.addEventListener("mousedown", function (e) {
+          e.preventDefault();
+          input.value = id;
+          menu.style.display = "none";
+        });
+        menu.appendChild(item);
+      });
+      menu.style.display = "block";
+    }
+
+    input.addEventListener("focus", render);
+    input.addEventListener("input", render);
+    input.addEventListener("blur", function () {
+      menu.style.display = "none";
     });
   }
 
@@ -630,8 +778,20 @@
 
     var h3 = document.createElement("h3");
     h3.textContent = wf.title;
-    h3.title = wf.desc;
+    h3.tabIndex = 0;
+    h3.setAttribute("data-tooltip", wf.desc);
     card.appendChild(h3);
+
+    if (wf.imageUpdateIndicator) {
+      // A sibling of h3, not a child of it -- nesting it inside h3 would
+      // make hovering the dot also trigger h3's own [data-tooltip] bubble
+      // underneath it, since :hover matches ancestors too.
+      var badge = document.createElement("span");
+      badge.className = "update-badge";
+      badge.id = "imageUpdateBadge";
+      badge.tabIndex = 0;
+      card.insertBefore(badge, h3.nextSibling);
+    }
 
     var fieldEls = {};
     wf.inputs.forEach(function (inp) {
@@ -643,7 +803,6 @@
 
       var el = document.createElement("input");
       el.type = inp.type === "checkbox" ? "checkbox" : "text";
-      if (inp.datalist) el.setAttribute("list", inp.datalist);
       el.id = wf.file + "__" + inp.name;
       if (inp.type === "checkbox") {
         el.checked = !!inp.default;
@@ -655,6 +814,7 @@
       }
 
       card.appendChild(field);
+      if (inp.datalist) attachTenantCombobox(el);
       fieldEls[inp.name] = { el: el, type: inp.type, required: inp.required };
     });
 
@@ -838,7 +998,8 @@
 
     var h3 = document.createElement("h3");
     h3.textContent = seq.title;
-    h3.title = seq.desc;
+    h3.tabIndex = 0;
+    h3.setAttribute("data-tooltip", seq.desc);
     card.appendChild(h3);
 
     var actions = document.createElement("div");
@@ -918,7 +1079,7 @@
   WORKFLOWS.forEach(function (wf) {
     list.appendChild(wf.type === "sequence" ? buildSequenceCard(wf) : buildCard(wf));
   });
-  populateTenantIdList();
+  loadStatusJson();
   populateBuildInfo();
 })();
 </script>
