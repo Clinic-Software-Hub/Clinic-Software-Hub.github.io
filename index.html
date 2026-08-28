@@ -317,12 +317,12 @@
     {
       type: "tenant-actions",
       title: "Manage Tenant",
-      desc: "Start, stop, or (re)create and start a specific tenant's stack.",
+      desc: "Start/(re)create a specific tenant's stack, or stop it. runtime-start-tenant.yml always (re)creates before starting -- it has no separate 'start without recreating' mode.",
       envKey: "enviroment",
       actions: [
-        { key: "start", label: "Start", icon: "play", file: "runtime-start-tenant.yml", fixedInputs: { "create-tenant": "false" } },
+        { key: "start", label: "Start", icon: "play", file: "runtime-start-tenant.yml", fixedInputs: {} },
         { key: "stop", label: "Stop", icon: "stop", file: "runtime-stop-tenant.yml", fixedInputs: {} },
-        { key: "create", label: "Create", icon: "wand", file: "runtime-start-tenant.yml", fixedInputs: { "create-tenant": "true" } }
+        { key: "create", label: "Create", icon: "wand", file: "runtime-start-tenant.yml", fixedInputs: {} }
       ]
     },
     {
@@ -971,11 +971,13 @@
   // Builds a "tenant-actions" card: one shared Tenant ID field plus N
   // action buttons that each dispatch a workflow file with their own fixed
   // inputs -- e.g. Manage Tenant's Start/Create both target
-  // runtime-start-tenant.yml (differing only in the create-tenant input)
-  // while Stop targets runtime-stop-tenant.yml; Manage Mongoku's Start/Stop
-  // both target runtime-manage-mongoku.yml, differing only in start-stop.
-  // All of a card's buttons are disabled together during a dispatch to
-  // avoid overlapping runs from the same card.
+  // runtime-start-tenant.yml with no extra inputs (the workflow itself
+  // always (re)creates before starting -- there's no toggle for it, so
+  // Start and Create are intentionally identical dispatches for now) while
+  // Stop targets runtime-stop-tenant.yml; Manage Mongoku's Start/Stop both
+  // target runtime-manage-mongoku.yml, differing only in start-stop. All of
+  // a card's buttons are disabled together during a dispatch to avoid
+  // overlapping runs from the same card.
   function buildTenantActionsCard(wf) {
     var card = document.createElement("div");
     card.className = "workflow-card";
