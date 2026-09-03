@@ -587,6 +587,47 @@
     return s.replace(ANSI_RE, "");
   }
 
+  var ERROR_LINE_RE = /\b(error|failed|failure|failures|exception)\b/i;
+  var ERROR_COLOR = "#d32f2f";
+
+  // Splits `text` into lines and renders each as a text node, wrapping
+  // lines that look like an error/failure message in a red span so
+  // failures stand out without reading the whole log.
+  function renderLogText(doc, pre, text) {
+    pre.textContent = "";
+    var lines = text.split("\n");
+    lines.forEach(function (line, i) {
+      if (ERROR_LINE_RE.test(line)) {
+        var span = doc.createElement("span");
+        span.style.color = ERROR_COLOR;
+        span.textContent = line;
+        pre.appendChild(span);
+      } else {
+        pre.appendChild(doc.createTextNode(line));
+      }
+      if (i < lines.length - 1) pre.appendChild(doc.createTextNode("\n"));
+    });
+  }
+
+  // Renders the ref + workflow_dispatch inputs that were actually sent to
+  // the API, so the log tab shows what triggered this run without going
+  // back to the card that dispatched it.
+  function renderParamsList(doc, container, params) {
+    container.textContent = "";
+    var list = doc.createElement("div");
+    list.style.cssText = "font-size:12px;color:#555555;margin-bottom:0.75rem;line-height:1.6;";
+    Object.keys(params).forEach(function (key) {
+      var row = doc.createElement("div");
+      var strong = doc.createElement("span");
+      strong.textContent = key + ": ";
+      strong.style.fontWeight = "600";
+      row.appendChild(strong);
+      row.appendChild(doc.createTextNode(String(params[key])));
+      list.appendChild(row);
+    });
+    container.appendChild(list);
+  }
+
   // Polls a run + its jobs' raw logs until the run completes, rendering
   // status into `statusText` and per-job logs into `jobsContainer` (both
   // elements already attached to `tab`'s document). Shared by the
@@ -608,13 +649,18 @@
 
         var jobTitle = tab.document.createElement("div");
         jobTitle.textContent = r.job.name + " — " + r.job.status + (r.job.conclusion ? " (" + r.job.conclusion + ")" : "");
-        jobTitle.style.cssText = "font-weight:600;margin-bottom:0.5rem;";
+        jobTitle.style.cssText = "font-weight:600;margin-bottom:0.5rem;" + (r.job.conclusion === "failure" ? "color:" + ERROR_COLOR + ";" : "");
         jobBlock.appendChild(jobTitle);
 
         var pre = tab.document.createElement("pre");
         pre.style.cssText = "background:#ffffff;border:1px solid #dde5ec;border-radius:8px;padding:1rem;overflow:auto;font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-word;margin:0;";
         if (r.log !== null) {
-          pre.textContent = stripAnsi(r.log) || "(empty log so far)";
+          var stripped = stripAnsi(r.log);
+          if (stripped) {
+            renderLogText(tab.document, pre, stripped);
+          } else {
+            pre.textContent = "(empty log so far)";
+          }
         } else if (r.job.status !== "completed") {
           pre.textContent = "Waiting for this job to start...";
         } else {
@@ -633,6 +679,7 @@
       }).then(function (res) { return res.json(); }).then(function (run) {
         if (tab.closed) return;
         statusText.textContent = "Status: " + run.status + (run.conclusion ? " (" + run.conclusion + ")" : "");
+        statusText.style.color = run.conclusion === "failure" ? ERROR_COLOR : "";
         if (onUpdate) onUpdate(run);
 
         return fetch("https://api.github.com/repos/" + OWNER + "/" + REPO + "/actions/runs/" + runId + "/jobs", {
@@ -668,8 +715,10 @@
   }
 
   // Renders a live-ish log view for a single run directly in `tab`.
+  // `params`, if given, is the ref + workflow_dispatch inputs actually
+  // sent for this run, rendered under the title.
   // `onUpdate`, if given, is forwarded to pollRunLogs (see its comment).
-  function renderLogsInTab(tab, runId, token, htmlUrl, title, onUpdate) {
+  function renderLogsInTab(tab, runId, token, htmlUrl, title, params, onUpdate) {
     if (!tab) return;
     tab.document.title = title + " — Run logs";
     tab.document.body.style.margin = "0";
@@ -685,6 +734,12 @@
     h1.textContent = title;
     h1.style.cssText = "font-size:1.3rem;font-weight:700;margin-bottom:1rem;";
     wrap.appendChild(h1);
+
+    if (params) {
+      var paramsHolder = tab.document.createElement("div");
+      wrap.appendChild(paramsHolder);
+      renderParamsList(tab.document, paramsHolder, params);
+    }
 
     var topBar = tab.document.createElement("div");
     topBar.style.cssText = "display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;gap:1rem;";
@@ -724,6 +779,9 @@
     heading.style.cssText = "font-size:1.05rem;font-weight:700;margin-bottom:0.5rem;";
     section.appendChild(heading);
 
+    var paramsHolder = tab.document.createElement("div");
+    section.appendChild(paramsHolder);
+
     var topBar = tab.document.createElement("div");
     topBar.style.cssText = "display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;gap:1rem;";
 
@@ -742,7 +800,7 @@
 
     container.appendChild(section);
 
-    return { statusText: statusText, linkHolder: linkHolder, jobsContainer: jobsContainer };
+    return { statusText: statusText, linkHolder: linkHolder, jobsContainer: jobsContainer, paramsHolder: paramsHolder };
   }
 
   // Lays out a section per step of `seq` in `tab` and returns their live
@@ -937,7 +995,8 @@
             runBtn.disabled = false;
             if (run) {
               result.textContent = "Dispatched on '" + branchValue + "'. Streaming logs in new tab.";
-              renderLogsInTab(logTab, run.id, token, run.html_url, wf.title, function (updatedRun) {
+              var displayParams = Object.assign({ ref: branchValue }, inputsPayload);
+              renderLogsInTab(logTab, run.id, token, run.html_url, wf.title, displayParams, function (updatedRun) {
                 if (updatedRun.status !== "completed") return;
                 result.className = "result " + (updatedRun.conclusion === "success" ? "ok" : "err");
                 result.textContent = "Run " + updatedRun.conclusion + " (" + branchValue + "). See the log tab for details.";
@@ -1070,7 +1129,8 @@
               setButtonsDisabled(false);
               if (run) {
                 result.textContent = "Dispatched on '" + branchValue + "'. Streaming logs in new tab.";
-                renderLogsInTab(logTab, run.id, token, run.html_url, tabTitle, function (updatedRun) {
+                var displayParams = Object.assign({ ref: branchValue }, inputsPayload);
+                renderLogsInTab(logTab, run.id, token, run.html_url, tabTitle, displayParams, function (updatedRun) {
                   if (updatedRun.status !== "completed") return;
                   result.className = "result " + (updatedRun.conclusion === "success" ? "ok" : "err");
                   result.textContent = action.label + " " + updatedRun.conclusion + " (" + branchValue + "). See the log tab for details.";
@@ -1142,6 +1202,10 @@
 
     var inputsPayload = {};
     inputsPayload[wf.envKey] = envValue;
+    if (sectionRefs) {
+      var displayParams = Object.assign({ ref: branchValue }, inputsPayload);
+      renderParamsList(tab.document, sectionRefs.paramsHolder, displayParams);
+    }
     var dispatchTime = Date.now();
 
     return fetch("https://api.github.com/repos/" + OWNER + "/" + REPO + "/actions/workflows/" + wf.file + "/dispatches", {
