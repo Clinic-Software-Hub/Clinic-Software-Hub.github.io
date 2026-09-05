@@ -535,7 +535,11 @@
       if (!sha || !date) throw new Error("malformed response");
 
       var shortSha = sha.slice(0, 7);
-      var stamp = new Date(date).toISOString().replace("T", " ").replace(/\.\d+Z$/, " UTC");
+      var stamp = new Date(date).toLocaleString(undefined, {
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", second: "2-digit",
+        hour12: false, timeZoneName: "short"
+      });
 
       footer.textContent = "";
       var link = document.createElement("a");
@@ -591,12 +595,29 @@
   var ERROR_COLOR = "#d32f2f";
   var SUCCESS_COLOR = "#2e7d32";
 
+  function pad(n) {
+    return n < 10 ? "0" + n : String(n);
+  }
+
+  // GitHub Actions raw logs prefix every line with a UTC timestamp, e.g.
+  // "2026-09-05T08:19:55.1234567Z some log output" -- rewrite that prefix
+  // to the viewer's local time so it doesn't have to be mentally offset
+  // against every other timestamp on their machine.
+  function toLocalTimestamps(text) {
+    return text.replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z/gm, function (match) {
+      var d = new Date(match);
+      if (isNaN(d.getTime())) return match;
+      return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T" +
+        pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+    });
+  }
+
   // Splits `text` into lines and renders each as a text node, wrapping
   // lines that look like an error/failure message in a red span so
   // failures stand out without reading the whole log.
   function renderLogText(doc, pre, text) {
     pre.textContent = "";
-    var lines = text.split("\n");
+    var lines = toLocalTimestamps(text).split("\n");
     lines.forEach(function (line, i) {
       if (ERROR_LINE_RE.test(line)) {
         var span = doc.createElement("span");
