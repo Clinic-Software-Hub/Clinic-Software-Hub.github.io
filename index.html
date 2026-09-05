@@ -589,6 +589,7 @@
 
   var ERROR_LINE_RE = /\b(error|failed|failure|failures|exception)\b/i;
   var ERROR_COLOR = "#d32f2f";
+  var SUCCESS_COLOR = "#2e7d32";
 
   // Splits `text` into lines and renders each as a text node, wrapping
   // lines that look like an error/failure message in a red span so
@@ -649,7 +650,7 @@
 
         var jobTitle = tab.document.createElement("div");
         jobTitle.textContent = r.job.name + " — " + r.job.status + (r.job.conclusion ? " (" + r.job.conclusion + ")" : "");
-        jobTitle.style.cssText = "font-weight:600;margin-bottom:0.5rem;" + (r.job.conclusion === "failure" ? "color:" + ERROR_COLOR + ";" : "");
+        jobTitle.style.cssText = "font-weight:600;margin-bottom:0.5rem;" + (r.job.conclusion === "failure" ? "color:" + ERROR_COLOR + ";" : r.job.conclusion === "success" ? "color:" + SUCCESS_COLOR + ";" : "");
         jobBlock.appendChild(jobTitle);
 
         var pre = tab.document.createElement("pre");
@@ -679,7 +680,7 @@
       }).then(function (res) { return res.json(); }).then(function (run) {
         if (tab.closed) return;
         statusText.textContent = "Status: " + run.status + (run.conclusion ? " (" + run.conclusion + ")" : "");
-        statusText.style.color = run.conclusion === "failure" ? ERROR_COLOR : "";
+        statusText.style.color = run.conclusion === "failure" ? ERROR_COLOR : run.conclusion === "success" ? SUCCESS_COLOR : "";
         if (onUpdate) onUpdate(run);
 
         return fetch("https://api.github.com/repos/" + OWNER + "/" + REPO + "/actions/runs/" + runId + "/jobs", {
