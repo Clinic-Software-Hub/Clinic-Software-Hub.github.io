@@ -78,6 +78,8 @@
     font-weight: 600;
   }
   a.button:hover { background: var(--primary-hover); }
+  a.button.disabled { background: var(--text-dim); cursor: not-allowed; }
+  a.button.disabled:hover { background: var(--text-dim); }
 
   main { max-width: 920px; margin: 0 auto; padding: 0 1rem 4rem; }
 
@@ -265,7 +267,7 @@
     <div class="top-controls workflow-card">
       <div class="field-with-help">
         <input type="password" id="patInput" placeholder="GitHub PAT" autocomplete="off">
-        <span class="help-icon" tabindex="0" data-tooltip="Create one at github.com &#8594; Settings &#8594; Developer settings &#8594; Personal access tokens &#8594; Fine-grained tokens &#8594; Generate new token. Scope it to the Clinic-Software-Hub/clinicsoftwarehub repository only, with Actions permission set to Read and write.">?</span>
+        <span class="help-icon" tabindex="0" data-tooltip="Create one at github.com &#8594; Settings &#8594; Developer settings &#8594; Personal access tokens &#8594; Fine-grained tokens &#8594; Generate new token. Scope it to the Clinic-Software-Hub/clinicsoftwarehub repository only, with Actions permission set to Read and write, and Environments permission set to Read-only.">?</span>
       </div>
       <div class="field-with-help">
         <input type="text" id="envInput" placeholder="GitHub environment name" autocomplete="off">
@@ -276,7 +278,7 @@
 
     <div class="workflow-card status-card">
       <h3>Status Dashboard</h3>
-      <a class="button" href="https://clinicsoftwarehub.online/status.html" target="_blank" rel="noopener noreferrer">View Status Dashboard</a>
+      <a class="button disabled" id="statusDashboardLink" tabindex="0" data-tooltip="Enter a GitHub PAT and environment name above to enable this button.">View Status Dashboard</a>
     </div>
   </div>
 </main>
@@ -469,6 +471,69 @@
       console.warn("Could not load " + STATUS_JSON_URL + ":", err);
     });
   }
+
+  // Resolves the Status Dashboard link's target from the `DOMAIN_NAME`
+  // Actions variable on the GitHub environment named in envInput, instead of
+  // a hardcoded domain. Unlike status.json, the
+  // .../environments/{env}/variables/{name} endpoint requires the PAT (with
+  // the fine-grained "Environments" repo permission, read-only), so until
+  // both a PAT and an environment name are entered -- and the lookup
+  // actually succeeds -- the button stays disabled rather than guessing a
+  // domain or falling back to a stale one.
+  var statusLink = document.getElementById("statusDashboardLink");
+  var STATUS_LINK_PROMPT = "Enter a GitHub PAT and environment name above to enable this button.";
+  var statusResolveSeq = 0; // guards a stale in-flight fetch from clobbering a newer one
+
+  function disableStatusLink(tooltip) {
+    statusLink.classList.add("disabled");
+    statusLink.removeAttribute("href");
+    statusLink.removeAttribute("target");
+    statusLink.removeAttribute("rel");
+    statusLink.setAttribute("data-tooltip", tooltip);
+  }
+
+  function enableStatusLink(domain) {
+    statusLink.classList.remove("disabled");
+    statusLink.href = "https://" + domain + "/status.html";
+    statusLink.target = "_blank";
+    statusLink.rel = "noopener noreferrer";
+    statusLink.removeAttribute("data-tooltip");
+  }
+
+  function resolveStatusDashboardLink() {
+    var token = patEl.value.trim();
+    var env = envEl.value.trim();
+    var seq = ++statusResolveSeq;
+
+    if (!token || !env) {
+      disableStatusLink(STATUS_LINK_PROMPT);
+      return;
+    }
+
+    disableStatusLink("Looking up DOMAIN_NAME for environment '" + env + "'...");
+
+    fetch("https://api.github.com/repos/" + OWNER + "/" + REPO + "/environments/" + encodeURIComponent(env) + "/variables/DOMAIN_NAME", {
+      headers: ghHeaders(token)
+    }).then(function (res) {
+      if (!res.ok) throw new Error("status " + res.status);
+      return res.json();
+    }).then(function (data) {
+      if (seq !== statusResolveSeq) return; // superseded by a newer PAT/env value
+      if (!data || !data.value) throw new Error("malformed response");
+      enableStatusLink(data.value);
+    }).catch(function () {
+      if (seq !== statusResolveSeq) return;
+      disableStatusLink("Couldn't look up DOMAIN_NAME for environment '" + env + "' -- check that the PAT has the Environments (read) permission and that the variable exists.");
+    });
+  }
+
+  var statusResolveDebounce = null;
+  function scheduleStatusResolve() {
+    clearTimeout(statusResolveDebounce);
+    statusResolveDebounce = setTimeout(resolveStatusDashboardLink, 500);
+  }
+  patEl.addEventListener("input", scheduleStatusResolve);
+  envEl.addEventListener("input", scheduleStatusResolve);
 
   // Themed stand-in for the native <input list>/<datalist> combobox (which
   // can't be restyled to match the page). Filters `tenantIds` as the user
@@ -1365,6 +1430,7 @@
   loadStatusJson();
   setInterval(loadStatusJson, STATUS_POLL_MS);
   populateBuildInfo();
+  resolveStatusDashboardLink();
 })();
 </script>
 </body>
