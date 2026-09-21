@@ -46,15 +46,28 @@ the browser using a user-supplied fine-grained PAT (pasted into `#patInput`, kep
      run completes. The `jobs/{id}/logs` endpoint can redirect to a signed URL that doesn't
      always return CORS headers to arbitrary origins — if that fetch fails, the UI shows a
      fallback message pointing at "Open in GitHub Actions" rather than failing silently.
-- **Tenant ID autocomplete** (`populateTenantIdList`): fetches the public, unauthenticated
-  `https://clinicsoftwarehub.online/status.json` to fill a shared `<datalist id="tenantIdList">`
-  used by every `tenant_id` input. If that fetch fails (network error, non-2xx, malformed JSON,
-  or CORS since the VPS nginx doesn't send `Access-Control-Allow-Origin` for cross-origin Pages
-  requests), it fails silently and the inputs just behave as plain free-text fields.
+- **Domain resolution** (`resolveDomainName`): the Status Dashboard link and `status.json` (below)
+  don't hardcode a domain -- both are built from one resolved via `GET
+  /repos/Clinic-Software-Hub/clinicsoftwarehub/environments/{env}/variables/DOMAIN_NAME`, using
+  the PAT and the environment name from `#envInput`. Unlike `status.json` itself, this call
+  requires the PAT (the fine-grained token needs the "Environments" repo permission, read-only,
+  in addition to "Actions"). It's debounced on every PAT/env input change; while unresolved (no
+  PAT/env yet, or the lookup fails) the resolved domain stays `null` -- the Status Dashboard link
+  stays disabled with an explanatory tooltip, `status.json` polling is skipped, and any
+  previously-loaded tenant list / image-update badge is cleared so nothing stale from a
+  different environment lingers.
+- **Tenant ID autocomplete** (`loadStatusJson` + `attachTenantCombobox`): once a domain has been
+  resolved, fetches the public, unauthenticated `https://{domain}/status.json` (repolled every
+  `STATUS_POLL_MS`) to fill the shared `tenantIds` array, which every `tenant_id` input filters
+  live through a themed custom combobox (not a native `<datalist>`). If that fetch fails (network
+  error, non-2xx, malformed JSON, or CORS since the VPS nginx doesn't send
+  `Access-Control-Allow-Origin` for cross-origin Pages requests), it fails silently and the
+  inputs just behave as plain free-text fields.
 - **Persisted fields**: PAT, environment name, and branch inputs are persisted to
   `sessionStorage` via `bindPersisted` so they survive a page reload within the same tab session.
-- **Status Dashboard card** is just a static link to `https://clinicsoftwarehub.online/status.html`;
-  it has no dispatch logic.
+- **Status Dashboard card** (`#statusDashboardLink`) is enabled and pointed at
+  `https://{resolvedDomain}/status` once `resolveDomainName` succeeds; otherwise disabled. It has
+  no dispatch logic.
 
 When adding a new workflow card, add an entry to `WORKFLOWS` with the correct `file`, `envKey`
 (check the actual workflow's declared inputs in the `clinicsoftwarehub` repo — don't assume),
