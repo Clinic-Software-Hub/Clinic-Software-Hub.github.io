@@ -292,7 +292,6 @@
   var OWNER = "Clinic-Software-Hub";
   var REPO = "clinicsoftwarehub";
   var DEFAULT_REF = "main";
-  var STATUS_JSON_URL = "https://clinicsoftwarehub.online/status.json";
   // How often to re-fetch status.json in the background, so the tenant ID
   // list and the image-update indicator stay current on a tab left open
   // rather than only reflecting whatever was true at page load.
@@ -452,8 +451,11 @@
       stale.join("\n"));
   }
 
-  // status.json is public and unauthenticated, so this doesn't need the PAT.
-  // If it's unreachable -- most likely blocked by CORS since the VPS nginx
+  // status.json itself is public and unauthenticated, but its domain now
+  // comes from the same DOMAIN_NAME environment-variable lookup as the
+  // Status Dashboard link (see resolveDomainName below), so this can't run
+  // until that lookup has resolved a domain. If status.json is unreachable
+  // once it does run -- most likely blocked by CORS since the VPS nginx
   // config doesn't currently send Access-Control-Allow-Origin for a
   // cross-origin GitHub Pages request, but also network errors, non-2xx, or
   // malformed JSON -- both features below silently stay off (or, on a poll
@@ -461,27 +463,32 @@
   // saw): tenant_id inputs behave as plain free-text fields and the update
   // indicator never lights up.
   function loadStatusJson() {
-    fetch(STATUS_JSON_URL).then(function (res) {
+    if (!resolvedDomain) return;
+    var url = "https://" + resolvedDomain + "/status.json";
+    fetch(url).then(function (res) {
       if (!res.ok) throw new Error("status " + res.status);
       return res.json();
     }).then(function (data) {
       tenantIds = extractTenantIds(data);
       applyImageUpdateIndicator(data);
     }).catch(function (err) {
-      console.warn("Could not load " + STATUS_JSON_URL + ":", err);
+      console.warn("Could not load " + url + ":", err);
     });
   }
 
-  // Resolves the Status Dashboard link's target from the `DOMAIN_NAME`
-  // Actions variable on the GitHub environment named in envInput, instead of
-  // a hardcoded domain. Unlike status.json, the
+  // Resolves the domain both the Status Dashboard link and status.json (see
+  // loadStatusJson above -- tenant ID autocomplete + the image-update badge)
+  // are built from, off the `DOMAIN_NAME` Actions variable on the GitHub
+  // environment named in envInput, instead of a hardcoded domain. That
   // .../environments/{env}/variables/{name} endpoint requires the PAT (with
   // the fine-grained "Environments" repo permission, read-only), so until
   // both a PAT and an environment name are entered -- and the lookup
-  // actually succeeds -- the button stays disabled rather than guessing a
-  // domain or falling back to a stale one.
+  // actually succeeds -- resolvedDomain stays null: the link stays disabled
+  // and status.json polling is skipped, rather than guessing a domain or
+  // falling back to a stale one.
   var statusLink = document.getElementById("statusDashboardLink");
   var STATUS_LINK_PROMPT = "Enter a GitHub PAT and environment name above to enable this button.";
+  var resolvedDomain = null;
   var statusResolveSeq = 0; // guards a stale in-flight fetch from clobbering a newer one
 
   function disableStatusLink(tooltip) {
@@ -500,12 +507,22 @@
     statusLink.removeAttribute("data-tooltip");
   }
 
-  function resolveStatusDashboardLink() {
+  // Clears whatever the previous domain (if any) had populated, so a PAT/env
+  // edit or a failed lookup can't leave a stale tenant list or image-update
+  // badge on screen from a different environment's domain.
+  function clearDomainDependents() {
+    resolvedDomain = null;
+    tenantIds = [];
+    applyImageUpdateIndicator(null);
+  }
+
+  function resolveDomainName() {
     var token = patEl.value.trim();
     var env = envEl.value.trim();
     var seq = ++statusResolveSeq;
 
     if (!token || !env) {
+      clearDomainDependents();
       disableStatusLink(STATUS_LINK_PROMPT);
       return;
     }
@@ -520,9 +537,12 @@
     }).then(function (data) {
       if (seq !== statusResolveSeq) return; // superseded by a newer PAT/env value
       if (!data || !data.value) throw new Error("malformed response");
-      enableStatusLink(data.value);
+      resolvedDomain = data.value;
+      enableStatusLink(resolvedDomain);
+      loadStatusJson(); // refresh immediately rather than waiting for the next poll tick
     }).catch(function () {
       if (seq !== statusResolveSeq) return;
+      clearDomainDependents();
       disableStatusLink("Couldn't look up DOMAIN_NAME for environment '" + env + "' -- check that the PAT has the Environments (read) permission and that the variable exists.");
     });
   }
@@ -530,7 +550,7 @@
   var statusResolveDebounce = null;
   function scheduleStatusResolve() {
     clearTimeout(statusResolveDebounce);
-    statusResolveDebounce = setTimeout(resolveStatusDashboardLink, 500);
+    statusResolveDebounce = setTimeout(resolveDomainName, 500);
   }
   patEl.addEventListener("input", scheduleStatusResolve);
   envEl.addEventListener("input", scheduleStatusResolve);
@@ -1427,10 +1447,9 @@
       : buildCard(wf);
     list.appendChild(card);
   });
-  loadStatusJson();
   setInterval(loadStatusJson, STATUS_POLL_MS);
   populateBuildInfo();
-  resolveStatusDashboardLink();
+  resolveDomainName();
 })();
 </script>
 </body>
