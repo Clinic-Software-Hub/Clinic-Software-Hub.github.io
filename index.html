@@ -257,7 +257,7 @@
 <body>
 
 <header>
-  <h1>Clinic-Software-Hub</h1>
+  <h1 id="pageTitle">Clinic-Software-Hub</h1>
   <p>Administration of tenants and shared infrastructure</p>
 </header>
 
@@ -491,6 +491,18 @@
   var resolvedDomain = null;
   var statusResolveSeq = 0; // guards a stale in-flight fetch from clobbering a newer one
 
+  // Base title/heading captured once at load, so the resolved domain can be
+  // appended to (and cleanly stripped back off) the tab title and the <h1>
+  // as resolvedDomain comes and goes.
+  var BASE_TITLE = document.title;
+  var pageTitleEl = document.getElementById("pageTitle");
+  var BASE_H1_TEXT = pageTitleEl.textContent;
+
+  function setPageIdentity(domain) {
+    document.title = domain ? BASE_TITLE + " — " + domain : BASE_TITLE;
+    pageTitleEl.textContent = domain ? BASE_H1_TEXT + " — " + domain : BASE_H1_TEXT;
+  }
+
   function disableStatusLink(tooltip) {
     statusLink.classList.add("disabled");
     statusLink.removeAttribute("href");
@@ -514,6 +526,7 @@
     resolvedDomain = null;
     tenantIds = [];
     applyImageUpdateIndicator(null);
+    setPageIdentity(null);
   }
 
   function resolveDomainName() {
@@ -539,6 +552,7 @@
       if (!data || !data.value) throw new Error("malformed response");
       resolvedDomain = data.value;
       enableStatusLink(resolvedDomain);
+      setPageIdentity(resolvedDomain);
       loadStatusJson(); // refresh immediately rather than waiting for the next poll tick
     }).catch(function () {
       if (seq !== statusResolveSeq) return;
