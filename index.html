@@ -252,16 +252,101 @@
     cursor: pointer;
   }
   .combo-item:hover, .combo-item.active { background: var(--bg); }
+
+  .auth-status {
+    position: absolute;
+    top: 1.25rem;
+    right: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+  }
+  .auth-status button {
+    background: none;
+    border: 1px solid var(--panel-border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .auth-status button:hover { border-color: var(--primary); color: var(--primary); }
+
+  #authOverlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .hidden { display: none !important; }
+  .auth-box {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 2rem 2.5rem;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(40, 53, 147, 0.06);
+    max-width: 360px;
+  }
+  .auth-box h2 { margin: 0 0 0.5rem; font-size: 1.1rem; }
+  .auth-box p { margin: 0 0 1.25rem; color: var(--text-dim); font-size: 0.9rem; }
+  .auth-box .denied { color: var(--down); font-weight: 600; }
+  #authSignInBtn {
+    background: #24292f;
+    color: #fff;
+    border: none;
+    padding: 0.65rem 1.25rem;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  #authSignInBtn:hover { background: #32383f; }
+  #authSignOutBtn {
+    background: none;
+    border: 1px solid var(--panel-border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+  }
+  #authSignOutBtn:hover { border-color: var(--primary); color: var(--primary); }
 </style>
 </head>
 <body>
 
-<header>
+<div id="authOverlay">
+  <div class="auth-box">
+    <div id="authSignedOutView">
+      <h2>Sign in required</h2>
+      <p>Sign in with GitHub to access the control panel.</p>
+      <button id="authSignInBtn">Sign in with GitHub</button>
+    </div>
+    <div id="authDeniedView" class="hidden">
+      <h2 class="denied">Access denied</h2>
+      <p id="authDeniedMessage"></p>
+      <button id="authSignOutBtn2">Sign out</button>
+    </div>
+  </div>
+</div>
+
+<header style="position: relative;">
+  <div class="auth-status hidden" id="authStatus">
+    <span id="authUserLabel"></span>
+    <button id="authSignOutBtn">Sign out</button>
+  </div>
   <h1 id="pageTitle">Clinic-Software-Hub</h1>
   <p>Administration of tenants and shared infrastructure</p>
 </header>
 
-<main>
+<main class="hidden">
   <h2 class="section-title">Runtime Actions</h2>
   <div id="workflowList">
     <div class="top-controls workflow-card">
@@ -285,9 +370,24 @@
 
 <footer class="build-info" id="buildInfo">Loading version…</footer>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 (function () {
   "use strict";
+
+  // --- Supabase auth gate -------------------------------------------------
+  // Project Settings -> API in the Supabase dashboard for both of these.
+  var SUPABASE_URL = "https://sxveaumfjppszertfvqy.supabase.co";             // e.g. https://sxveaumfjppszertfvqy.supabase.co
+  var SUPABASE_PUBLISHABLE_KEY = "sb_publishable_kyY5kWxiKLttxF4LlmJONg_fJMh7iYh"; // "Publishable key" (sb_publishable_...), or
+                                                // the legacy "anon" "public" key on older
+                                                // projects -- either is safe to expose client-side
+
+  // GitHub logins (case-insensitive) allowed past the sign-in gate. Signing
+  // in with Supabase only proves *who* someone is on GitHub; this list is
+  // what actually restricts use of the panel.
+  var ALLOWED_GITHUB_USERNAMES = ["rajeshkz", "REPLACE_ME_2"];
+
+  var supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
   var OWNER = "Clinic-Software-Hub";
   var REPO = "clinicsoftwarehub";
@@ -1454,6 +1554,56 @@
     return card;
   }
 
+  function initAuth() {
+    var overlay = document.getElementById("authOverlay");
+    var signedOutView = document.getElementById("authSignedOutView");
+    var deniedView = document.getElementById("authDeniedView");
+    var deniedMessage = document.getElementById("authDeniedMessage");
+    var mainEl = document.querySelector("main");
+    var authStatus = document.getElementById("authStatus");
+    var authUserLabel = document.getElementById("authUserLabel");
+
+    function signIn() {
+      supabaseClient.auth.signInWithOAuth({
+        provider: "github",
+        options: { redirectTo: window.location.href }
+      });
+    }
+    function signOut() {
+      supabaseClient.auth.signOut();
+    }
+    document.getElementById("authSignInBtn").addEventListener("click", signIn);
+    document.getElementById("authSignOutBtn").addEventListener("click", signOut);
+    document.getElementById("authSignOutBtn2").addEventListener("click", signOut);
+
+    function render(session) {
+      var login = session && session.user && session.user.user_metadata
+        ? session.user.user_metadata.user_name
+        : null;
+      var allowed = !!login && ALLOWED_GITHUB_USERNAMES.some(function (u) {
+        return u.toLowerCase() === login.toLowerCase();
+      });
+
+      authStatus.classList.toggle("hidden", !login);
+      if (login) authUserLabel.textContent = "Signed in as @" + login;
+
+      overlay.classList.toggle("hidden", allowed);
+      mainEl.classList.toggle("hidden", !allowed);
+      signedOutView.classList.toggle("hidden", !!login);
+      deniedView.classList.toggle("hidden", !login || allowed);
+      if (login && !allowed) {
+        deniedMessage.textContent = "@" + login + " is not on the allowlist for this panel.";
+      }
+    }
+
+    supabaseClient.auth.getSession().then(function (result) {
+      render(result.data.session);
+    });
+    supabaseClient.auth.onAuthStateChange(function (_event, session) {
+      render(session);
+    });
+  }
+
   var list = document.getElementById("workflowList");
   WORKFLOWS.forEach(function (wf) {
     var card = wf.type === "sequence" ? buildSequenceCard(wf)
@@ -1464,6 +1614,7 @@
   setInterval(loadStatusJson, STATUS_POLL_MS);
   populateBuildInfo();
   resolveDomainName();
+  initAuth();
 })();
 </script>
 </body>
