@@ -358,7 +358,7 @@
         <input type="text" id="envInput" placeholder="GitHub environment name" autocomplete="off">
         <span class="help-icon" tabindex="0" data-tooltip="Find it in the clinicsoftwarehub repo under Settings &#8594; Environments. Use the exact environment name shown there (e.g. production).">?</span>
       </div>
-      <input type="text" id="branchInput" placeholder="Branch (default: main)" autocomplete="off">
+      <input type="text" id="branchInput" value="development" readonly>
     </div>
 
     <div class="workflow-card status-card">
@@ -404,7 +404,6 @@
 
   var PAT_KEY = "csh_gh_pat";
   var ENV_KEY = "csh_gh_env";
-  var BRANCH_KEY = "csh_gh_branch";
 
   // GitHub can take noticeably longer than a few seconds between accepting
   // a workflow_dispatch call and the resulting run actually showing up in
@@ -497,7 +496,7 @@
 
   var patEl = bindPersisted("patInput", PAT_KEY);
   var envEl = bindPersisted("envInput", ENV_KEY);
-  var branchEl = bindPersisted("branchInput", BRANCH_KEY);
+  var branchEl = document.getElementById("branchInput"); // fixed to "development", not persisted
 
   // Populated from status.json once it loads; read live by the tenant_id
   // comboboxes below (each one filters this same array, so nothing needs to
