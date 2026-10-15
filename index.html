@@ -436,6 +436,26 @@
       ]
     },
     {
+      file: "runtime-rename-tenant.yml",
+      title: "Rename tenant",
+      desc: "Moves a tenant's data to a brand-new tenant, then stops/archives/removes the old tenant. Destructive on the old tenant (recoverable from the archive).",
+      envKey: "enviroment",
+      inputs: [
+        { name: "old_tenant_id", label: "Tenant ID to rename from", type: "text", required: true, datalist: true },
+        { name: "new_tenant_id", label: "Tenant ID to rename to (newly created)", type: "text", required: true }
+      ]
+    },
+    {
+      file: "runtime-copy-tenant.yml",
+      title: "Copy tenant",
+      desc: "Copies a tenant's data into a brand-new tenant. The source tenant is left running and intact.",
+      envKey: "enviroment",
+      inputs: [
+        { name: "old_tenant_id", label: "Tenant ID to copy data from ", type: "text", required: true, datalist: true },
+        { name: "new_tenant_id", label: "Tenant ID to copy data to (newly created)", type: "text", required: true }
+      ]
+    },
+    {
       file: "runtime-offboard-tenant.yml",
       title: "Offboard tenant",
       desc: "Stops a tenant, archives its whole directory, then deletes the live copy. Destructive on the live directory (recoverable from the archive).",
