@@ -60,6 +60,14 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 0.8rem;
   }
+  #patInput.oauth-granted {
+    font-style: italic;
+    color: var(--up);
+    -webkit-text-fill-color: var(--up);
+    opacity: 1;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    cursor: default;
+  }
 
   header {
     text-align: center;
@@ -404,6 +412,7 @@
 
   var PAT_KEY = "csh_gh_pat";
   var ENV_KEY = "csh_gh_env";
+  var OAUTH_TOKEN_KEY = "csh_gh_oauth_token";
 
   // GitHub can take noticeably longer than a few seconds between accepting
   // a workflow_dispatch call and the resulting run actually showing up in
@@ -517,6 +526,21 @@
   var patEl = bindPersisted("patInput", PAT_KEY);
   var envEl = bindPersisted("envInput", ENV_KEY);
   var branchEl = document.getElementById("branchInput"); // fixed to "development", not persisted
+
+  // Captured from the Supabase session's OAuth provider_token (see initAuth
+  // below) once it's verified to have push access to OWNER/REPO. Persisted
+  // across reloads within the tab, since Supabase only hands provider_token
+  // back on the initial OAuth redirect, not on later session restores.
+  var oauthToken = sessionStorage.getItem(OAUTH_TOKEN_KEY) || null;
+  var oauthHasActionsAccess = false;
+  var oauthCapabilityChecked = false;
+
+  // Every GitHub API call below should read the token through this, not
+  // patEl.value directly, so a verified OAuth token transparently takes over
+  // from the manually-pasted PAT.
+  function effectiveToken() {
+    return (oauthHasActionsAccess && oauthToken) ? oauthToken : patEl.value.trim();
+  }
 
   // Populated from status.json once it loads; read live by the tenant_id
   // comboboxes below (each one filters this same array, so nothing needs to
@@ -649,7 +673,7 @@
   }
 
   function resolveDomainName() {
-    var token = patEl.value.trim();
+    var token = effectiveToken();
     var env = envEl.value.trim();
     var seq = ++statusResolveSeq;
 
@@ -753,11 +777,17 @@
       if (!sha || !date) throw new Error("malformed response");
 
       var shortSha = sha.slice(0, 7);
+      // timeZoneName: "short" is skipped on purpose -- for zones ICU
+      // considers ambiguous (e.g. India's IST clashing with Ireland's),
+      // it falls back to a bare "GMT+5:30" offset that reads as "this is
+      // UTC", even though toLocaleString has already converted into the
+      // browser's actual local zone. Appending the resolved IANA zone name
+      // instead makes that explicit.
       var stamp = new Date(date).toLocaleString(undefined, {
         year: "numeric", month: "2-digit", day: "2-digit",
         hour: "2-digit", minute: "2-digit", second: "2-digit",
-        hour12: false, timeZoneName: "short"
-      });
+        hour12: false
+      }) + " " + Intl.DateTimeFormat().resolvedOptions().timeZone;
 
       footer.textContent = "";
       var link = document.createElement("a");
@@ -1177,7 +1207,7 @@
     card.appendChild(result);
 
     runBtn.addEventListener("click", function () {
-      var token = patEl.value.trim();
+      var token = effectiveToken();
       var envValue = envEl.value.trim();
       var branchValue = branchEl.value.trim() || DEFAULT_REF;
 
@@ -1319,7 +1349,7 @@
       buttons[action.key] = btn;
 
       btn.addEventListener("click", function () {
-        var token = patEl.value.trim();
+        var token = effectiveToken();
         var envValue = envEl.value.trim();
         var branchValue = branchEl.value.trim() || DEFAULT_REF;
         var tenantId = tenantInput.value.trim();
@@ -1516,7 +1546,7 @@
     card.appendChild(result);
 
     runBtn.addEventListener("click", function () {
-      var token = patEl.value.trim();
+      var token = effectiveToken();
       var envValue = envEl.value.trim();
       var branchValue = branchEl.value.trim() || DEFAULT_REF;
 
@@ -1573,6 +1603,47 @@
     return card;
   }
 
+  // Verifies the OAuth token Supabase captured at GitHub sign-in actually has
+  // push access to OWNER/REPO -- push access is what workflow_dispatch,
+  // polling runs/logs, and the Environments variable lookup all need.
+  // Requesting the "repo" scope at sign-in (see signIn above) only gets the
+  // token issued; it doesn't guarantee the signed-in user still has that
+  // level of access to this specific repo, so this is checked for real
+  // rather than assumed. Plain GET, no side effects.
+  function checkOAuthCapability(token) {
+    fetch("https://api.github.com/repos/" + OWNER + "/" + REPO, {
+      headers: ghHeaders(token)
+    }).then(function (res) {
+      if (!res.ok) throw new Error("status " + res.status);
+      return res.json();
+    }).then(function (data) {
+      applyOAuthCapability(!!(data && data.permissions && data.permissions.push));
+    }).catch(function () {
+      applyOAuthCapability(false);
+    });
+  }
+
+  // Swaps the PAT box for a disabled, italic green status line once the
+  // signed-in user's OAuth token is confirmed usable for Actions, or
+  // restores the normal editable PAT box otherwise -- falling back to
+  // whatever PAT (if any) was already persisted, same as before this
+  // feature existed.
+  function applyOAuthCapability(capable) {
+    oauthHasActionsAccess = capable;
+    if (capable) {
+      patEl.type = "text";
+      patEl.value = "Access to run actions granted from OAuth";
+      patEl.disabled = true;
+      patEl.classList.add("oauth-granted");
+    } else {
+      patEl.classList.remove("oauth-granted");
+      patEl.disabled = false;
+      patEl.type = "password";
+      patEl.value = sessionStorage.getItem(PAT_KEY) || "";
+    }
+    resolveDomainName(); // token source just changed -- re-resolve immediately rather than waiting on input events
+  }
+
   function initAuth() {
     var overlay = document.getElementById("authOverlay");
     var signedOutView = document.getElementById("authSignedOutView");
@@ -1585,7 +1656,11 @@
     function signIn() {
       supabaseClient.auth.signInWithOAuth({
         provider: "github",
-        options: { redirectTo: window.location.href }
+        // "repo" is what lets the resulting OAuth token (see
+        // checkOAuthCapability below) actually dispatch/poll Actions and
+        // read Environments variables -- without it the token only proves
+        // identity, same as before this scope was added.
+        options: { redirectTo: window.location.href, scopes: "repo" }
       });
     }
     function signOut() {
@@ -1612,6 +1687,31 @@
       deniedView.classList.toggle("hidden", !login || allowed);
       if (login && !allowed) {
         deniedMessage.textContent = "@" + login + " is not on the allowlist for this panel.";
+      }
+
+      // Capture/re-verify the OAuth token independently of the allowlist
+      // render above -- a fresh provider_token only arrives right after the
+      // OAuth redirect, so it's grabbed here the moment it shows up, then
+      // checked once per distinct token (not on every render, e.g. not on
+      // Supabase's own periodic session-refresh events).
+      if (allowed) {
+        var newToken = session && session.provider_token;
+        if (newToken && newToken !== oauthToken) {
+          oauthToken = newToken;
+          sessionStorage.setItem(OAUTH_TOKEN_KEY, oauthToken);
+          oauthCapabilityChecked = false;
+        }
+        if (!oauthToken) {
+          applyOAuthCapability(false);
+        } else if (!oauthCapabilityChecked) {
+          oauthCapabilityChecked = true;
+          checkOAuthCapability(oauthToken);
+        }
+      } else {
+        oauthToken = null;
+        oauthCapabilityChecked = false;
+        sessionStorage.removeItem(OAUTH_TOKEN_KEY);
+        applyOAuthCapability(false);
       }
     }
 

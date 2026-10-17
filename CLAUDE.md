@@ -65,6 +65,14 @@ the browser using a user-supplied fine-grained PAT (pasted into `#patInput`, kep
   inputs just behave as plain free-text fields.
 - **Persisted fields**: PAT, environment name, and branch inputs are persisted to
   `sessionStorage` via `bindPersisted` so they survive a page reload within the same tab session.
+- **OAuth-as-PAT** (`effectiveToken`, `checkOAuthCapability`, `applyOAuthCapability`): the
+  Supabase GitHub sign-in gate (see `GITHUB_AUTH_SETUP.md`) requests the `repo` OAuth scope; once
+  signed in and allowlisted, `checkOAuthCapability` does a one-time live check of whether that
+  OAuth token has push access to `OWNER/REPO`. If so, every GitHub API call (which all read the
+  token via `effectiveToken()`, never `patEl.value` directly) transparently uses that OAuth token
+  instead, and the PAT box is disabled and repurposed to show an italic green status message. If
+  the check fails (no push access, org restricts third-party OAuth access, no provider token
+  available at all), the PAT box reverts to its original editable behavior.
 - **Status Dashboard card** (`#statusDashboardLink`) is enabled and pointed at
   `https://{resolvedDomain}/status` once `resolveDomainName` succeeds; otherwise disabled. It has
   no dispatch logic.

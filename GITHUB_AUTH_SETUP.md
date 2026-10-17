@@ -61,6 +61,29 @@ lets Supabase ask GitHub "did this person really authenticate as themselves?"
 5. On the app's page, copy the **Client ID**.
 6. Click **Generate a new client secret**, and copy the secret immediately — GitHub only
    shows it once.
+7. Leave **"Enable token expiration"** (device flow section) **off** (its default). `index.html`
+   uses the resulting OAuth token directly for Actions calls when it has sufficient access (see
+   "Why `index.html` requests the `repo` scope" below) and has no backend to safely hold a
+   client secret for refreshing an expiring token — if expiration is ever turned on here, users
+   would simply need to sign in again whenever the token dies, since there's no automatic
+   refresh.
+
+## 3b. Why `index.html` requests the `repo` scope
+
+`index.html`'s sign-in call requests GitHub's `repo` OAuth scope (not just identity). If the
+signed-in, allowlisted user's resulting token is confirmed (via a live check against the
+`clinicsoftwarehub` repo) to have push access, the page uses that token directly for all its
+GitHub API calls and disables the "GitHub PAT" box, showing an italic green "Access to run
+actions granted from OAuth" message in its place instead. If the check fails for any reason (no
+push access, scope denied, no provider token available), the page falls back to the original
+behavior: a normal, editable PAT box, same as before this feature existed.
+
+If the `Clinic-Software-Hub` org has third-party OAuth App access restrictions enabled, this
+OAuth App will need to be explicitly approved for the org (an org owner can do this from the
+consent screen the first time a member signs in, or via **Org Settings → Third-party Access**)
+— otherwise GitHub will grant the token identity info but silently withhold `repo`-scoped
+access to org repos, and the capability check will always fail (falling back to the manual PAT
+box, which still works regardless).
 
 ## 4. Add the GitHub credentials to Supabase
 
