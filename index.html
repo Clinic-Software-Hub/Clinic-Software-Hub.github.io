@@ -843,6 +843,19 @@
   var ERROR_COLOR = "#d32f2f";
   var SUCCESS_COLOR = "#2e7d32";
 
+  // GitHub Actions echoes a step's own script source into the raw log
+  // before running it, so a line can contain "error"/"failed"/etc. just
+  // because that's what the command being printed says, not because
+  // anything actually failed -- e.g. `echo "0 errors found"`, or a shell/
+  // YAML comment line mentioning the word. These are excluded from the red
+  // highlight below even if ERROR_LINE_RE matches.
+  var SOURCE_ECHO_RE = /\becho\s/i;
+  var SOURCE_COMMENT_RE = /^(?:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\s+)?\s*#/;
+
+  function isSourcePrintout(line) {
+    return SOURCE_ECHO_RE.test(line) || SOURCE_COMMENT_RE.test(line);
+  }
+
   function pad(n) {
     return n < 10 ? "0" + n : String(n);
   }
@@ -867,7 +880,7 @@
     pre.textContent = "";
     var lines = toLocalTimestamps(text).split("\n");
     lines.forEach(function (line, i) {
-      if (ERROR_LINE_RE.test(line)) {
+      if (ERROR_LINE_RE.test(line) && !isSourcePrintout(line)) {
         var span = doc.createElement("span");
         span.style.color = ERROR_COLOR;
         span.textContent = line;
@@ -1654,13 +1667,19 @@
     var authUserLabel = document.getElementById("authUserLabel");
 
     function signIn() {
+      // Built from origin+pathname rather than the raw window.location.href
+      // -- the latter can carry over a stray trailing "#" (e.g. from
+      // https://.../# ) that Supabase would then append its own
+      // "#access_token=..." fragment onto, producing a malformed "##..."
+      // URL that it fails to clean back up after sign-in.
+      var cleanRedirect = window.location.origin + window.location.pathname;
       supabaseClient.auth.signInWithOAuth({
         provider: "github",
         // "repo" is what lets the resulting OAuth token (see
         // checkOAuthCapability below) actually dispatch/poll Actions and
         // read Environments variables -- without it the token only proves
         // identity, same as before this scope was added.
-        options: { redirectTo: window.location.href, scopes: "repo" }
+        options: { redirectTo: cleanRedirect, scopes: "repo" }
       });
     }
     function signOut() {
