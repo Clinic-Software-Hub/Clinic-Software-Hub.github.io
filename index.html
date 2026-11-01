@@ -238,8 +238,13 @@
   }
 
   /* Themed stand-in for the native <input list> combobox popup, used for
-     the tenant_id fields. */
+     the tenant_id fields and the environment-name field. */
   .combo-wrap { position: relative; }
+  /* envInput's combo-wrap sits inside a flex row (.field-with-help)
+     alongside the help-icon span, unlike the tenant_id fields' plain
+     block-level .field wrapper -- without this it shrinks to fit its
+     content instead of filling the row like the input did on its own. */
+  .field-with-help .combo-wrap { flex: 1 1 auto; min-width: 0; }
   .combo-menu {
     display: none;
     position: absolute;
@@ -547,6 +552,14 @@
   // be redrawn when it arrives after a card has already rendered).
   var tenantIds = [];
 
+  // Suggestions for the environment-name combobox. Starts out (and falls
+  // back to) these two real, known environments -- replaced with the actual
+  // list from GET .../environments once a usable token exists (see
+  // resolveEnvironmentNames below), which currently also includes sample/
+  // test environments not meant for real use.
+  var DEFAULT_ENVIRONMENT_NAMES = ["clinicsoftwarehub.com", "clinicsoftwarehub.online"];
+  var environmentNames = DEFAULT_ENVIRONMENT_NAMES.slice();
+
   function extractTenantIds(data) {
     var tenants = data && Array.isArray(data.tenants) ? data.tenants : [];
     var ids = tenants.map(function (t) {
@@ -712,10 +725,52 @@
   patEl.addEventListener("input", scheduleStatusResolve);
   envEl.addEventListener("input", scheduleStatusResolve);
 
+  // Replaces `environmentNames` with the real list of GitHub Environments on
+  // OWNER/REPO -- same Environments:read permission already required for
+  // resolveDomainName above -- once a usable token exists, so the
+  // environment-name combobox can suggest real names instead of requiring
+  // the user to already know them. Falls back to DEFAULT_ENVIRONMENT_NAMES
+  // whenever no token is available yet, or the lookup fails for any reason
+  // (insufficient permission, network error, etc.), same fail-quiet pattern
+  // as the tenant ID list.
+  function resolveEnvironmentNames() {
+    var token = effectiveToken();
+    if (!token) {
+      environmentNames = DEFAULT_ENVIRONMENT_NAMES.slice();
+      return;
+    }
+    fetch("https://api.github.com/repos/" + OWNER + "/" + REPO + "/environments", {
+      headers: ghHeaders(token)
+    }).then(function (res) {
+      if (!res.ok) throw new Error("status " + res.status);
+      return res.json();
+    }).then(function (data) {
+      var names = (data && Array.isArray(data.environments) ? data.environments : [])
+        .map(function (e) { return e && e.name; })
+        .filter(function (n) { return typeof n === "string" && n; });
+      environmentNames = names.length ? names : DEFAULT_ENVIRONMENT_NAMES.slice();
+    }).catch(function () {
+      environmentNames = DEFAULT_ENVIRONMENT_NAMES.slice();
+    });
+  }
+
+  var envNamesResolveDebounce = null;
+  function scheduleEnvironmentNamesResolve() {
+    clearTimeout(envNamesResolveDebounce);
+    envNamesResolveDebounce = setTimeout(resolveEnvironmentNames, 500);
+  }
+  patEl.addEventListener("input", scheduleEnvironmentNamesResolve);
+
   // Themed stand-in for the native <input list>/<datalist> combobox (which
-  // can't be restyled to match the page). Filters `tenantIds` as the user
-  // types and shows the results in a custom-styled dropdown.
-  function attachTenantCombobox(input) {
+  // can't be restyled to match the page). Filters whatever `getItems()`
+  // returns at the moment the user interacts -- so a list that arrives
+  // asynchronously after the card has already rendered (tenantIds,
+  // environmentNames) needs nothing here redrawn when it does -- and shows
+  // the results in a custom-styled dropdown. Dispatches a real "input"
+  // event on selection so bindPersisted and anything else listening for
+  // typed input (e.g. scheduleStatusResolve) still fires for a dropdown
+  // pick, not just manual typing.
+  function attachCombobox(input, getItems) {
     var wrap = document.createElement("div");
     wrap.className = "combo-wrap";
     input.parentNode.insertBefore(wrap, input);
@@ -728,7 +783,7 @@
 
     function render() {
       var q = input.value.trim().toLowerCase();
-      var matches = tenantIds.filter(function (id) {
+      var matches = getItems().filter(function (id) {
         return !q || id.toLowerCase().indexOf(q) !== -1;
       });
       menu.textContent = "";
@@ -745,6 +800,7 @@
         item.addEventListener("mousedown", function (e) {
           e.preventDefault();
           input.value = id;
+          input.dispatchEvent(new Event("input", { bubbles: true }));
           menu.style.display = "none";
         });
         menu.appendChild(item);
@@ -758,6 +814,14 @@
       menu.style.display = "none";
     });
   }
+
+  function attachTenantCombobox(input) {
+    attachCombobox(input, function () { return tenantIds; });
+  }
+
+  // Suggests real environment names (or the DEFAULT_ENVIRONMENT_NAMES
+  // fallback) in the same themed dropdown used for tenant IDs above.
+  attachCombobox(envEl, function () { return environmentNames; });
 
   // Shows the currently-deployed commit in the footer by asking GitHub for
   // the latest commit on this repo's main branch, rather than baking a
@@ -1655,6 +1719,7 @@
       patEl.value = sessionStorage.getItem(PAT_KEY) || "";
     }
     resolveDomainName(); // token source just changed -- re-resolve immediately rather than waiting on input events
+    resolveEnvironmentNames();
   }
 
   function initAuth() {
@@ -1752,6 +1817,7 @@
   setInterval(loadStatusJson, STATUS_POLL_MS);
   populateBuildInfo();
   resolveDomainName();
+  resolveEnvironmentNames();
   initAuth();
 })();
 </script>
